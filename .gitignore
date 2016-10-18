@@ -1,0 +1,16 @@
+
+*.stash
+
+*.o
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/Makefile
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/qrc_qml.cpp
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/UltrasoundBox.app/Contents/Info.plist
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/UltrasoundBox.app/Contents/MacOS/UltrasoundBox
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/UltrasoundBox.app/Contents/PkgInfo
+
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/UltrasoundBox.app/Contents/Resources/empty.lproj
