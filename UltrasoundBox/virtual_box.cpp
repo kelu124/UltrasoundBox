@@ -2,6 +2,9 @@
 
 #include <QDebug>
 
+
+#include <QString>
+
 #include <QMutex>
 #include <QThread>
 #include <QOpenGLContext>
@@ -12,28 +15,722 @@
 
 #include <qopenglshaderprogram.h>
 #include <qopenglfunctions.h>
+#include <qopenglfunctions.h>
+#include <QQuickWindow>
+#include <QOpenGLTexture>
+#include <QOpenGLShader>
+
+#include <QDomNode>
 
 #include <QQuickWindow>
 
-QList <QThread *> VirtualBox::virtual_ui_threads;
+#include <qmath.h>
 
-class Render :protected QOpenGLFunctions
+class RenderBase : protected QOpenGLFunctions
 {
+public:
+    RenderBase() {}
+
+    virtual ~RenderBase() {}
+    virtual void initialize() {}
+    virtual void paint() {}
+    virtual void createGeometry() {}
+    virtual void setMap   ( int, unsigned char *, int ) {}
+    virtual void addData  ( int, unsigned char *, int ) {}
+    virtual void setScan(QDomNode) {}
+
+    void setViewPort (int vx, int vy, int vw, int vh);
+    void setViewPort (QRect rect);
+
+    void setGeoTrans (QDomNode);
+    void setGeoProbe (QDomNode);
+
+    QMatrix4x4 mModelMatrix;
+    QMatrix4x4 mViewMatrix;
+    QMatrix4x4 mProjectionMatrix;
+
+    QMatrix4x4 mMVPMatrix;
+    QSize      mSize;
+
+    QVector<QVector3D> colorsMapB;
+    QVector<QVector3D> colorsMapC;
+    QVector<QVector3D> colorsMapM;
+    QVector<QVector3D> colorsMapPW;
+
+    struct st_geo_trans{
+        int        angle;
+        int        x_turn;
+        int        y_turn;
+        QRectF     cutRect;
+    }m_geo_trans;
+
+
+    struct st_Probe {
+        int   hard;
+        int   soft;
+
+        int   element;
+        float interval;
+        float radius;
+        float angle;
+        float linewidth;
+
+        QString name;
+        QString icon;
+        QString type;
+
+    }m_probe;
 };
+
+void RenderBase::setViewPort (int vx, int vy, int vw, int vh)
+{
+    Q_UNUSED(vx);
+    Q_UNUSED(vy);
+    mViewMatrix.setToIdentity();
+    mViewMatrix.lookAt(QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0, 0.0f, -5.0f), QVector3D(0.0f, 1.0f, 0.0f));
+    mViewMatrix.scale(mSize.width ()/vw, mSize.height ()/vh, 1.0);
+}
+
+void RenderBase::setViewPort (QRect rect)
+{
+    setViewPort(rect.x(), rect.y(), rect.width(), rect.height());
+}
+
+void RenderBase::setGeoTrans (QDomNode root)
+{
+    if (root.isNull ()) return;
+
+    qDebug() << root.toElement ().tagName ();
+
+    QDomNode node = root.firstChildElement ();
+
+    while(!node.isNull ()) {
+        if (node.isElement ()) {
+            if (node.toElement ().tagName () == QString("rotate")) {
+                int angle = node.toElement ().attribute ("value", QString("0")).toInt ();
+                if (angle == 0) {
+                    mModelMatrix.setToIdentity ();
+                }else {
+                    mModelMatrix.rotate (angle, 0.0f, 0.0f, 1.0f);
+                }
+                m_geo_trans.angle = angle;
+            }else if (node.toElement ().tagName () == QString("turnUD")){
+                int v = node.toElement ().attribute ("value", QString("0")).toInt();
+                if (v == 0) {
+                    m_geo_trans.y_turn = 1;
+                    mModelMatrix.setToIdentity ();
+                }else {
+                    m_geo_trans.y_turn = -1;
+                    mModelMatrix.rotate (180, 1, 0, 0);
+                }
+            }else if (node.toElement ().tagName () == QString("turnLR")) {
+                int v = node.toElement ().attribute ("value", QString("0")).toInt ();
+
+                if (v == 0) {
+                    m_geo_trans.x_turn = 1;
+                    mModelMatrix.setToIdentity ();
+                }else {
+                    m_geo_trans.x_turn = -1;
+                    mModelMatrix.rotate (180, 1, 0, 0);
+                }
+            }else if (node.toElement ().tagName () == QString("size")) {
+                int w = node.toElement ().attribute ("width", QString("0")).toInt ();
+                int h = node.toElement ().attribute ("height", QString("0")).toInt ();
+
+                mSize = QSize(w, h);
+            }
+        }
+
+        node = node.nextSiblingElement ();
+    }
+
+}
+
+void RenderBase::setGeoProbe (QDomNode node)
+{
+    if (node.isNull ()) {
+        return;
+    }
+
+    QString probeType = node.toElement ().attribute ("type");
+
+    if (probeType == QString("Convex")) {
+        m_probe.name = node.toElement ().attribute ("name", "");
+        m_probe.icon = node.toElement ().attribute ("icon", "");
+        m_probe.hard = node.toElement ().attribute ("hard", "0").toInt ();
+        m_probe.soft = node.toElement ().attribute ("soft", "").toInt ();
+        m_probe.type = probeType;
+        m_probe.element = node.toElement ().attribute ("element").toInt();
+        m_probe.interval= node.toElement ().attribute ("interval", "0").toFloat ();
+        m_probe.radius  = node.toElement ().attribute ("radius", "0").toFloat ();
+        m_probe.angle   = node.toElement ().attribute ("angle", "0").toFloat ();
+    }else if (probeType == QString("Line")) {
+        m_probe.name = node.toElement ().attribute ("name", "");
+        m_probe.icon = node.toElement ().attribute ("icon", "");
+        m_probe.hard = node.toElement ().attribute ("hard", "0").toInt ();
+        m_probe.soft = node.toElement ().attribute ("soft", "").toInt ();
+        m_probe.type = probeType;
+        m_probe.element  = node.toElement ().attribute ("element").toInt();
+        m_probe.interval = node.toElement ().attribute ("interval", "0.0").toFloat ();
+        m_probe.linewidth= node.toElement ().attribute ("lineWidth").toFloat ();
+    }else {
+        qDebug() << "not support probe";
+    }
+
+}
+
+
+struct st_opengl_data {
+    int    flag;
+    float  angle;
+    QOpenGLTexture    *texture;
+    QVector<QVector3D> vertices;
+    QVector<QVector2D> vercoords;
+};
+
+struct st_complex{
+    struct st_opengl_data opengl_data_l;
+    struct st_opengl_data opengl_data_m;
+    struct st_opengl_data opengl_data_r;
+
+};
+
+
+
+class RenderB : public RenderBase
+{
+public:
+    RenderB(QSize);
+/*remmap*/
+    void initialize();
+    void paint();
+    void createGeometry();
+
+    void setMap  ( int, unsigned char *, int );
+    void addData ( int, unsigned char *, int );
+    void setScan (QDomNode);
+
+private:
+    void initShaders();
+    void initData();
+
+    void drawDSC();
+
+    QOpenGLTexture *getTextures();
+
+    QOpenGLShaderProgram	 program;
+
+    int mModelMatrixHandle;
+    int mViewMatrixHandle;
+    int mProjectionMatrixHandle;
+
+    int mPositionHandle;
+    int mTexCoordHandle;
+    int mColorArrayhandle;
+
+
+    struct st_scan{
+        float depth;
+
+        int    complex_len;
+        struct st_complex complex[2];
+    }m_scan;
+
+    struct st_textureGeo{
+        int     lines;
+        int     samples;
+    }m_texture_geo = {
+        256,
+        512
+    };
+
+    QByteArray      mData;
+};
+
+RenderB::RenderB(QSize size) : program(0)
+{
+    mSize = size;
+    mData.resize (size.width () * size.height ());
+
+    memset (mData.data (), 255, size.width () * size.height ());
+}
+
+
+void RenderB::initialize()
+{
+    initializeOpenGLFunctions();
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_DEPTH_TEST);
+
+    initShaders();
+    initData();
+
+    createGeometry ();
+}
+
+void RenderB::createGeometry ()
+{
+    struct point
+    {
+        GLfloat x;
+        GLfloat y;
+    };
+
+//    //make texture vertices and coord
+//    GLint lines   = m_texture_geo.lines;
+//    GLint samples = m_texture_geo.samples;
+//    Q_UNUSED (samples);
+
+//    GLfloat radius = m_probe.radius;
+//    GLfloat depth  = m_scan.depth;
+
+//    GLfloat theta  = m_probe.angle * 3.1415926 / 180/2;
+//    GLfloat theta0 = m_probe.angle * 3.1415926 / 180 / (lines - 1);
+
+//    GLfloat head = radius * cos(theta);
+//    GLfloat scal = (radius + depth - head )/mSize.height ();
+
+//    GLfloat ratex	= (mSize.width ()/2) * scal;
+//    GLfloat ratey	= (depth + radius - radius * cos(theta))/2;
+
+//    GLfloat delta = (depth + radius - radius*cos(theta)) / 2.0 + radius*cos(theta);
+
+
+//    point pt[2];
+
+//    GLfloat pt_x = 0.0;
+//    GLfloat pt_y = 0.0;
+
+//    for (int i = 0; i < m_scan.complex_len; i++) {
+//        GLfloat angle;
+//        angle = m_scan.complex[i].opengl_data_l.angle;
+//        m_scan.complex[i].opengl_data_l.vertices.clear ();
+
+//        for (int k = 0; k < lines; k++) {
+//            //左下
+//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
+//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
+
+//            //左上
+//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
+//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
+
+//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
+//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
+
+
+//            //顶点
+//            m_scan.complex[i].opengl_data_l.vertices << QVector2D(pt[0].x, pt[0].y)  \
+//                        << QVector2D(pt[1].x, pt[1].y);
+//            //纹理坐标
+//            m_scan.complex[i].opengl_data_l.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
+//                        << QVector2D(1.0, 1.0 * i / (lines - 1));
+//        }
+
+//        angle = m_scan.complex[i].opengl_data_r.angle;
+//        m_scan.complex[i].opengl_data_r.vertices.clear ();
+
+//        for (int k = 0; k < lines; k++) {
+//            //左下
+//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
+//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
+
+//            //左上
+//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
+//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
+
+//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
+//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
+
+
+//            //顶点
+//            m_scan.complex[i].opengl_data_r.vertices << QVector2D(pt[0].x, pt[0].y)  \
+//                        << QVector2D(pt_x, -pt_y);
+//            //纹理坐标
+//            m_scan.complex[i].opengl_data_r.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
+//                        << QVector2D(1.0, 1.0 * i / (lines - 1));
+//        }
+
+//        angle = m_scan.complex[i].opengl_data_m.angle;
+//        m_scan.complex[i].opengl_data_r.vertices.clear ();
+
+//        for (int k = 0; k < lines; k++) {
+//            //左下
+//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
+//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
+
+//            //左上
+//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
+//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
+
+//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
+//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
+
+
+//            //顶点
+//            m_scan.complex[i].opengl_data_r.vertices << QVector2D(pt[0].x, pt[0].y)  \
+//                        << QVector2D(pt[1].x, pt[1].y);
+//            //纹理坐标
+//            m_scan.complex[i].opengl_data_r.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
+//                        << QVector2D(sin(angle), 1.0 * i / (lines - 1) + cos(angle));
+//        }
+//    }
+
+
+
+    GLint lines   =  m_texture_geo.lines;
+    GLint samples =  m_texture_geo.samples;
+    int w = mSize.width ();
+    int h = mSize.height ();
+    float scanProbeWidth = m_probe.linewidth;
+    float depth = m_scan.depth;
+
+    int scanwidth = int ((double)h * scanProbeWidth/depth);
+    int scandepth = int ((double)w * depth/scanProbeWidth);
+
+    double deta0 = scanwidth / lines;
+
+    double hscanwidth = scanwidth/2;
+    int hw = w/2;
+
+    point pt[2];
+
+    Q_UNUSED (samples);
+    Q_UNUSED (scandepth);
+
+    for (int i = 0; i < m_scan.complex_len; i++) {
+        GLfloat angle;
+        angle = m_scan.complex[i].opengl_data_l.angle;
+        m_scan.complex[i].opengl_data_l.vertices.clear ();
+        m_scan.complex[i].opengl_data_l.vercoords.clear ();
+
+        for (int i = 0; i < lines/2; i++) {
+            pt[0].x = -((hscanwidth - i * deta0)/hw);
+            pt[0].y = 1;
+
+            pt[1].x = -((hscanwidth - i * deta0)/hw);
+            pt[1].y = -1;
+        }
+
+        for (int i = lines/2; i < lines; i++) {
+            pt[0].x = ((i * deta0 - hscanwidth)/hw);
+            pt[0].y = 1;
+
+            pt[1].x = ((i * deta0 - hscanwidth)/hw);
+            pt[1].y = -1;
+
+        }
+    }
+}
+
+void RenderB::paint()
+{
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable( GL_DEPTH_TEST );
+    glEnable(GL_TEXTURE_2D);
+
+    for (int i = 0; i < m_scan.complex_len; i++) {
+        glActiveTexture (GL_TEXTURE0 +  3*i);
+        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_l.texture->textureId ());
+
+        glActiveTexture (GL_TEXTURE0 + 1 + 3*i);
+        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_m.texture->textureId ());
+
+        glActiveTexture (GL_TEXTURE0 + 2 + 3*i);
+        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_r.texture->textureId ());
+    }
+
+    glActiveTexture (GL_TEXTURE0);
+
+    program.bind();
+    drawDSC();
+    program.release();
+
+    for (int i = 0; i < m_scan.complex_len; i++) {
+        m_scan.complex[i].opengl_data_l.texture->release ();
+        m_scan.complex[i].opengl_data_m.texture->release ();
+        m_scan.complex[i].opengl_data_r.texture->release ();
+    }
+
+
+}
+
+void RenderB::setMap (int id, unsigned char *map, int size)
+{
+    Q_UNUSED (id);
+
+    colorsMapB.clear ();
+    for (int i = 0; i < size; i += 3) {
+        colorsMapB << QVector3D(map[i], map[i+1], map[i+2]);
+    }
+}
+
+void RenderB::initShaders()
+{
+    initializeOpenGLFunctions();
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+    QOpenGLShader *vShader = new QOpenGLShader(QOpenGLShader::Vertex,  &program);
+    const char *vsrc = \
+        "#ifdef GL_ES\n"
+        "precision highp int;\n"
+        "precision highp float;\n"
+        "#endif\n"
+        "uniform mat4 u_model;\n"
+        "uniform mat4 u_view;\n"
+        "uniform mat4 u_projection;\n"
+        "attribute  vec4 a_Position[5];\n"
+        "attribute  vec2 a_texCoord[5];\n"
+        "varying    vec2 v_texCoord[5];\n"
+        "varying    vec3 v_fragPos [5];\n"
+        "void main()\n"
+        "{\n"
+            "int num;\n"
+            "for (num = 0; num < 5; num += 1) {\n"
+                v_texCoord =
+    }
+            "v_fragPos   = vec3(u_model * a_Position);"
+            "v_texCoord  = a_texCoord;\n"
+            "gl_Position = u_projection * u_view * u_model * a_Position[1];\n"
+        "}\n";
+    vShader->compileSourceCode(vsrc);
+
+    QOpenGLShader *fShader = new QOpenGLShader(QOpenGLShader::Fragment, &program);
+    const char *fsrc =
+        "#ifdef GL_ES\n"
+        "precision mediump int;\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "uniform  highp vec3 color_value[256];\n"
+        "varying  highp vec2      v_texCoord[5];\n"
+        "uniform  highp sampler2D s_texture[5];\n"
+        "uniform  float cut;"
+        "varying  vec3  v_fragPos[5];\n"
+        "void main(void)\n"
+        "{\n"
+            "float index;\n"
+            "vec3 color;\n"
+            "vec4 texture[5] =  texture2D(s_texture, v_texCoord) ;\n"
+//            "index = texture.x * 255.0;\n"
+//            "int t = int(index);\n"
+//            "if (-cut < v_fragPos.x && v_fragPos.x < cut) {\n"
+//                "color = color_value[t] / 255.0;\n"
+//            "}else{\n"
+//                "color = vec3(0, 0, 0);\n"
+//            "}\n"
+//            "gl_FragColor = vec4(color, 1.0);\n"
+            "gl_FragColor = texture;\n"
+        "}\n";
+
+    fShader->compileSourceCode(fsrc);
+
+    program.addShader(vShader);
+    program.addShader(fShader);
+    program.link();
+
+    program.bindAttributeLocation("a_Position", 0);
+    program.bindAttributeLocation("a_texCoord", 1);
+    program.bindAttributeLocation("a_Color",    2);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+}
+
+QOpenGLTexture *RenderB::getTextures ()
+{
+    QOpenGLTexture *texture = new QOpenGLTexture(QOpenGLTexture::Target2D);
+
+    texture->setSize(mSize.width (), mSize.height ());
+    texture->setFormat(QOpenGLTexture::LuminanceFormat);
+    texture->allocateStorage(QOpenGLTexture::Luminance, QOpenGLTexture::UInt8);
+
+    texture->setMinificationFilter(QOpenGLTexture::Linear);
+    texture->setMagnificationFilter(QOpenGLTexture::Linear);
+
+    texture->setWrapMode(QOpenGLTexture::Repeat);
+
+    return texture;
+}
+
+void RenderB::initData()
+{
+    //set model matrix
+    mModelMatrix.setToIdentity();
+    //set view matrix
+    mViewMatrix.setToIdentity();
+    mViewMatrix.lookAt(QVector3D(0.0f, 0.0f, 1.00f), QVector3D(0.0f, 0.0f, -5.0f), QVector3D(0.0f, 1.0f, 0.0f));
+
+    //set projection matrix
+    float bottom=  -1.0f;
+    float top	=	1.0f;
+    float n		=	1.0f;
+    float f		=	100.0f;
+    //FIXME 1 投影矩阵 左右值取-1, 1，不要让图像被缩放
+    mProjectionMatrix.setToIdentity();
+    mProjectionMatrix.frustum(-1.0, 1.0, bottom, top, n, f);
+}
+
+void RenderB::drawDSC()
+{
+    mModelMatrixHandle	= program.uniformLocation("u_model");
+    mViewMatrixHandle	= program.uniformLocation("u_view");
+    mProjectionMatrixHandle = program.uniformLocation("u_projection");
+
+    mPositionHandle  = program.attributeLocation("a_Position");
+    mTexCoordHandle	 = program.attributeLocation("a_texCoord");
+    mColorArrayhandle = program.uniformLocation("color_value");
+
+
+    program.setUniformValue("s_texture", 0);
+//    program.enableAttributeArray(mPositionHandle);
+//    program.setAttributeArray(mPositionHandle, vertices.constData());
+//    program.enableAttributeArray(mTexCoordHandle);
+//    program.setAttributeArray(mTexCoordHandle, vercoords.constData());
+
+//    program.setUniformValue(mModelMatrixHandle, mModelMatrix);
+//    program.setUniformValue(mViewMatrixHandle, mViewMatrix);
+//    program.setUniformValue(mProjectionMatrixHandle, mProjectionMatrix);
+
+//    program.setUniformValue("s_texture", 0);
+
+//    program.setUniformValueArray(mColorArrayhandle,  colorsMapB.constData(), 256);
+
+//    glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
+
+    program.disableAttributeArray(mPositionHandle);
+    program.disableAttributeArray(mTexCoordHandle);
+}
+
+void RenderB::setScan (QDomNode root)
+{
+    if (root.isNull ()) return;
+
+    QDomNode node;
+
+    node = root.firstChildElement ("depth");
+    if (!node.isNull ()) {
+        float value = node.toElement ().attribute("value", "1.0").toFloat ();
+        m_scan.depth = value;
+        createGeometry ();
+    }
+
+    node = root.firstChildElement ("complex");
+    if (!node.isNull ()) {
+        int len = node.toElement ().attribute ("len", "0").toInt ();
+
+        for (int i = 0; i < len; i++){
+            QDomNode L = node.toElement ().firstChildElement (QString("L%1").arg (i + 1));
+            QDomNode R = node.toElement ().firstChildElement (QString("R%1").arg (i + 1));
+            QDomNode M = node.toElement ().firstChildElement (QString("M%1").arg (i + 1));
+
+            if (L.isNull () || R.isNull ()) continue;
+
+            m_scan.complex[i].opengl_data_l.angle = L.toElement ().attribute ("angle").toFloat ();
+            m_scan.complex[i].opengl_data_r.angle = R.toElement ().attribute ("angle").toFloat ();
+            m_scan.complex[i].opengl_data_m.angle = M.toElement ().attribute ("angle").toFloat ();
+
+            m_scan.complex[i].opengl_data_l.flag = L.toElement ().attribute ("flag").toInt ();
+            m_scan.complex[i].opengl_data_r.flag = R.toElement ().attribute ("flag").toInt ();
+            m_scan.complex[i].opengl_data_m.flag = M.toElement ().attribute ("flag").toInt ();
+
+            m_scan.complex[i].opengl_data_l.texture = getTextures ();
+            m_scan.complex[i].opengl_data_r.texture = getTextures ();
+            m_scan.complex[i].opengl_data_m.texture = getTextures ();
+
+
+            m_scan.complex[i].opengl_data_r.vertices.clear ();
+            m_scan.complex[i].opengl_data_m.vertices.clear ();
+            m_scan.complex[i].opengl_data_l.vertices.clear ();
+
+            m_scan.complex[i].opengl_data_r.vercoords.clear ();
+            m_scan.complex[i].opengl_data_l.vercoords.clear ();
+            m_scan.complex[i].opengl_data_m.vercoords.clear ();
+        }
+    }
+}
+
+void RenderB::addData (int, unsigned char *data, int size)
+{
+    mData.resize (size);
+    memcpy( mData.data (), data, sizeof(unsigned char) * (size_t)size);
+}
+
+class RenderThread;
+class RenderItem : public QQuickItem
+{
+    Q_OBJECT
+
+public:
+    RenderItem(QDomNode, QQuickItem *parent = 0);
+
+    static QList<QThread *> threads;
+
+public Q_SLOTS:
+    void ready();
+
+protected:
+    QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
+
+private:
+    RenderThread *m_renderThread;
+
+Q_SIGNALS:
+    void setMap   ( int, unsigned char *, int );
+    void addData  ( int, unsigned char *, int );
+    void setScan  (QDomNode);
+};
+
+QList<QThread *> RenderItem::threads;
 
 class RenderThread : public QThread
 {
     Q_OBJECT
 public:
-    RenderThread(const QSize &size)
+    /*
+        <render>
+            <mode  value="B">
+                <B x= "-1" y = "-1" w = "2" h = "2"/>
+            </mode>
+            <probe name="R10" icon="res/R10.png" hard="16" soft="3" type="Convex" element="128" interval="1.175"
+radius="1.0" Angle="150.4"/>
+            <size width=768 height=512/>
+        </render>
+
+    */
+    RenderThread(QDomNode root)
         : surface(0)
         , context(0)
         , m_renderFbo(0)
         , m_displayFbo(0)
-//        , m_logoRenderer(0)
-        , m_size(size)
+        , m_size(QSize(0,0))
     {
-        VirtualBox::virtual_ui_threads << this;
+
+        QDomNode node;
+
+        node = root.firstChildElement (QString("mode"));
+        if (node.isNull ()) {
+            qWarning() << __FILE__ << __FUNCTION__ << "mode not found";
+            return;
+        }
+
+        m_mode_string = node.toElement().attribute("value");
+
+        node = root.firstChildElement (QString("size"));
+        if (node.isNull ()) {
+            qWarning() << __FILE__ << __FUNCTION__ << "size not found";
+            return;
+        }
+        m_size.setWidth  (node.toElement ().attribute ("width", "768").toInt ());
+        m_size.setHeight (node.toElement ().attribute ("height", "512").toInt ());
+
+        m_root_config = root.cloneNode (true);
+
+        RenderItem::threads << this;
     }
 
     QOffscreenSurface *surface;
@@ -49,25 +746,36 @@ public slots:
             QOpenGLFramebufferObjectFormat format;
             format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
             m_renderFbo  = new QOpenGLFramebufferObject (m_size, format);
-            m_displayFbo = new QOpenGLFramebufferObject(m_size, format);
-//            m_logoRenderer = new LogoRenderer();
-//            m_logoRenderer->initialize();
+            m_displayFbo = new QOpenGLFramebufferObject (m_size, format);
+
+            if (m_mode_string == "B") {
+                m_render = new RenderB(m_size);
+
+                QDomNode node;
+
+                node = m_root_config.firstChildElement ("probe");
+                m_render->setGeoProbe (node);
+
+                node = m_root_config.firstChildElement ("scan");
+                m_render->setScan (node);
+
+
+            }
+
+            m_render->initialize();
         }
 
         m_renderFbo->bind();
         context->functions ()->glViewport (0, 0, m_size.width(), m_size.height());
 
-//        m_logoRenderer->render();
+        m_render->paint();
 
-        // We need to flush the contents to the FBO before posting
-        // the texture to the other thread, otherwise, we might
-        // get unexpected results.
         context->functions()->glFlush();
 
         m_renderFbo->bindDefault();
         qSwap(m_renderFbo, m_displayFbo);
 
-        emit textureReady(m_displayFbo->texture(), m_size);
+        emit textureReady((int)m_displayFbo->texture(), m_size);
     }
 
     void shutDown()
@@ -75,7 +783,7 @@ public slots:
         context->makeCurrent(surface);
         delete m_renderFbo;
         delete m_displayFbo;
-//        delete m_logoRenderer;
+        delete m_render;
         context->doneCurrent();
         delete context;
 
@@ -87,6 +795,19 @@ public slots:
         moveToThread(QGuiApplication::instance()->thread());
     }
 
+    void setMap   ( int id, unsigned char *map, int size ){
+        m_render->setMap (id, map, size);
+
+    }
+
+    void addData  ( int id, unsigned char *buf, int size){
+        m_render->addData (id, buf, size);
+    }
+
+    void setScan  ( QDomNode node){
+        m_render->setScan (node);
+    }
+
 signals:
     void textureReady(int id, const QSize &size);
 
@@ -94,10 +815,12 @@ private:
     QOpenGLFramebufferObject *m_renderFbo;
     QOpenGLFramebufferObject *m_displayFbo;
 
-    //LogoRenderer *m_logoRenderer;
+    RenderBase                *m_render;
+
+    QDomNode                   m_root_config;
+    QString                    m_mode_string;
     QSize m_size;
 };
-
 
 class TextureNode : public QObject, public QSGSimpleTextureNode
 {
@@ -110,7 +833,6 @@ public:
         , m_texture(0)
         , m_window(window)
     {
-        // Our texture node must have a texture, so use the default 0 texture.
         m_texture = m_window->createTextureFromId(0, QSize(1, 1));
         setTexture(m_texture);
         setFiltering(QSGTexture::Linear);
@@ -127,16 +849,12 @@ signals:
 
 public slots:
 
-    // This function gets called on the FBO rendering thread and will store the
-    // texture id and size and schedule an update on the window.
     void newTexture(int id, const QSize &size) {
         m_mutex.lock();
         m_id = id;
         m_size = size;
         m_mutex.unlock();
 
-        // We cannot call QQuickWindow::update directly here, as this is only allowed
-        // from the rendering thread or GUI thread.
         emit pendingNewTexture();
     }
 
@@ -150,9 +868,8 @@ public slots:
         m_mutex.unlock();
         if (newId) {
             delete m_texture;
-            // note: include QQuickWindow::TextureHasAlphaChannel if the rendered content
-            // has alpha.
-            m_texture = m_window->createTextureFromId(newId, size);
+
+            m_texture = m_window->createTextureFromId((uint)newId, size);
             setTexture(m_texture);
 
             markDirty(DirtyMaterial);
@@ -165,14 +882,95 @@ public slots:
 
 private:
 
+    QMutex m_mutex;
     int m_id;
+
     QSize m_size;
 
-    QMutex m_mutex;
-
-    QSGTexture *m_texture;
+    QSGTexture   *m_texture;
     QQuickWindow *m_window;
+
 };
+
+/*
+    <RenderItem>
+        <render>
+            ...
+        <render>
+    </RenderItem>
+*/
+RenderItem::RenderItem(QDomNode root, QQuickItem *parent)
+    : QQuickItem(parent)
+    , m_renderThread(0)
+{
+    setSize (parent->boundingRect ().toRect ().size ());
+    setFlag(ItemHasContents, true);
+
+    if (root.toElement ().tagName () != QString("RenderItem")) {
+        qWarning() << __FUNCTION__ << "DomNode format's err";
+        return;
+    }
+
+    QDomNode node = root.toElement ().firstChildElement ("render");
+
+    m_renderThread = new RenderThread(node);
+
+}
+
+void RenderItem::ready()
+{
+    m_renderThread->surface = new QOffscreenSurface();
+    m_renderThread->surface->setFormat(m_renderThread->context->format());
+    m_renderThread->surface->create();
+
+    m_renderThread->moveToThread(m_renderThread);
+
+    connect(window(), &QQuickWindow::sceneGraphInvalidated, m_renderThread, &RenderThread::shutDown, Qt::QueuedConnection);
+
+    connect(this, SIGNAL(setMap(int, unsigned char *, int)), m_renderThread, SLOT(setMap (int, unsigned char *, int)));
+    connect(this, SIGNAL(addData(int, unsigned char *, int)),m_renderThread, SLOT(addData(int, unsigned char *, int)));
+    connect(this, SIGNAL(setScan(QDomNode)),                 m_renderThread, SLOT(setScan(QDomNode)));
+
+    m_renderThread->start();
+    update();
+}
+
+QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
+{
+    TextureNode *node = static_cast<TextureNode *>(oldNode);
+
+    if (!m_renderThread->context) {
+        QOpenGLContext *current = window()->openglContext();
+
+        current->doneCurrent();
+
+        m_renderThread->context = new QOpenGLContext();
+        m_renderThread->context->setFormat(current->format());
+        m_renderThread->context->setShareContext(current);
+        m_renderThread->context->create();
+        m_renderThread->context->moveToThread(m_renderThread);
+
+        current->makeCurrent(window());
+        QMetaObject::invokeMethod(this, "ready");
+        return 0;
+    }
+
+    if (!node) {
+        node = new TextureNode(window());
+
+        connect(m_renderThread, &RenderThread::textureReady, node, &TextureNode::newTexture, Qt::DirectConnection);
+        connect(node, &TextureNode::pendingNewTexture, window(), &QQuickWindow::update, Qt::QueuedConnection);
+        connect(window(), &QQuickWindow::beforeRendering, node, &TextureNode::prepareNode, Qt::DirectConnection);
+        connect(node, &TextureNode::textureInUse, m_renderThread, &RenderThread::renderNext, Qt::QueuedConnection);
+
+        // Get the production of FBO textures started..
+        QMetaObject::invokeMethod(m_renderThread, "renderNext", Qt::QueuedConnection);
+    }
+
+    node->setRect(boundingRect());
+
+    return node;
+}
 
 
 
@@ -181,155 +979,38 @@ private:
 	qDebug() << __FILE__<<__LINE__<< "if you want to div 0, it's a thrilling thing."; \
 	} \
 	}while(0);
-VirtualBox::VirtualBox(int id, DeviceUltrasound *device,   \
-					   QDomDocument     *deviceXml, \
-					   QDomDocument     *probeXml, \
-					   const QDomDocument     &softXml,  \
-					   const QDomDocument     &configXml, \
-					   const QByteArray       &js,       \
-					   QQuickItem *gui, IOControls *io, qreal dscW, qreal dscH, QString runMode, QString parentMode, VirtualBoxManager *manager)
+
+VirtualBox::VirtualBox(int id \
+                     , Ultrasound *device \
+                     , QDomDocument     *deviceXml \
+                     , QDomDocument     *probeXml \
+                     , const QDomDocument     &softXml   \
+                     , const QDomDocument     &configXml \
+                     , QQuickItem *gui)
 {
-#ifdef SCRIPT_DEBUGGER
-	m_debugger = nullptr;
-	m_debugWindow = nullptr;
-#endif
+    Q_UNUSED (device);
 
-	Q_ASSERT(io);
-	m_vbox_id= id;
+    m_id = id;
 
-	Q_UNUSED(dscW);
-	Q_UNUSED(dscH);
-
-	m_dsc_image_rect = QRect (0, 0, dscW, dscH);
-
-	m_replay_w = 0;
-	m_replay_h = 20;
-
-	m_parent_mode = parentMode;
-	m_mode = runMode;
-	m_manager = manager;
 	/*member variables assignment*/
 	m_device_xml = deviceXml;
 	m_probe_xml  = probeXml;
 	m_soft_xml   = softXml.cloneNode().toDocument();
 	m_config_xml = configXml.cloneNode().toDocument();
-	m_js_buffer  = js;
 	m_gui_parent = gui;
-
 
 	/*engine init*/
 	m_engine = new QScriptEngine;
 
-	/*engine object init*/
-	m_fpga_control = new FpgaControl(m_device_xml);
-	m_fpga_control->engineLinked(m_engine);
-
-	m_soft_control = new SoftControl(&m_soft_xml);
-	m_soft_control->engineLinked(m_engine);
-
-	m_echo = new DeviceEcho(m_gui_parent);
-	m_echo->setVisible(true);
-
-	m_device_ultrasound = device;
-	m_memory_ultrasound = 0;
 	m_ultrasound        = 0;
 
-	m_type              = QString();
-	m_io                = io;
-
-	m_probe_info = new ProbeInfo(m_probe_xml, m_engine);
-
-	/*Register VirtualBox into engine*/
-	m_engine->globalObject().setProperty("vbox", m_engine->newQObject(this));
-
-	jsLoader();
-	functionLoader();
-
-	/*load eplugins*/
-	m_eplugins = PluginsManager::instance()->newItems(m_echo, m_engine, m_vbox_id);
-
-	m_args_layout.clear();
-
-	m_freeze = false;
-
+    QSize size(512, 512);
+    m_render_ui = new RenderItem(m_config_xml.documentElement (), m_gui_parent);
 }
 
-VirtualBox::~VirtualBox()
-{
-	if (m_memory_ultrasound) {
-		delete m_memory_ultrasound;
-		m_memory_ultrasound = 0;
-	}
 
-	if (m_type == "device") {
-		//vbox析构时，从Cache中删除
-		//		m_device_ultrasound->delCacheUser(m_vbox_id);
-		m_device_ultrasound->decRef();
-	}
-	functionUnLoader();
+VirtualBox::~VirtualBox (){
 
-	PluginsManager::instance()->delItems(m_eplugins, m_vbox_id);
-
-	delete m_probe_info;
-	delete m_echo;
-
-	delete m_soft_control;
-	delete m_fpga_control;
-	delete m_engine;
-#ifdef SCRIPT_DEBUGGER
-	if (m_debugger) {
-		m_debugger->detach();
-		delete m_debugger;
-		m_debugger = nullptr;
-	}
-	//NOTE Don't try to delete  m_debugWindow, it is created by  QScriptEngineDebugger and will destory by QScriptEngineDebugger;
-	//	if (m_debugWindow) {
-	//		delete m_debugWindow;
-	//		m_debugWindow = nullptr;
-	//	}
-#endif
-}
-
-int VirtualBox::echoH() const
-{
-	return m_echo->height();
-}
-
-int VirtualBox::echoW() const
-{
-	return m_echo->width();
-}
-
-int VirtualBox::ID()
-{
-	return m_vbox_id;
-}
-
-QScriptValue VirtualBox::callerFunction(QString function, int len, ...)
-{
-	va_list arg_ptr;
-	QStringList args;
-	QScriptValue ret;
-	va_start(arg_ptr,len);
-	do
-	{
-		args << va_arg(arg_ptr,QString);
-
-	} while(--len);
-	va_end(arg_ptr);
-
-	QScriptValue caller = m_engine->globalObject().property(function);
-	if (!caller.isValid())
-		return caller;
-	else {
-		QScriptValueList list;
-		for (int i = 0; i < args.length(); i++) {
-			QScriptValue v(args.at(i));
-			list << v;
-		}
-		ret = caller.call(QScriptValue(), list);
-	}
-	return ret;
 }
 
 QScriptValue VirtualBox::callerFunction(QString function)
@@ -345,7 +1026,6 @@ QScriptValue VirtualBox::callerFunction(QString function)
 	return ret;
 }
 
-/*TCP/IP*/
 QScriptValue VirtualBox::callerFpgaFunction(QString var, QString value)
 {
 	m_fpga_control->setObjectValueFName(var, value);
@@ -360,347 +1040,19 @@ QScriptValue VirtualBox::callerSoftFunction(QString var, QString value)
 	return QScriptValue();
 }
 
-void VirtualBox::callBrothersfunction(QString type, QString function, QString brotherMode)
-{
-	Q_UNUSED(type);
-	QScriptValue ret = m_manager->callerFunctionByMode(function, brotherMode);
-	if (ret.isError()) {
-		qDebug()<<__FILE__<<__LINE__<<"call Function Error"<<function <<brotherMode;
-	}
-}
-void VirtualBox::realUpFpga()
-{
-	m_ultrasound->updateCtrlTable(false);
-}
-
-void VirtualBox::functionUnLoader()
-{
-	delete m_replayer;
-	delete m_mouse;
-	delete m_dsc;
-	delete m_focus;
-	delete m_roi;
-	delete m_pwParams;
-	delete m_mParams;
-	delete m_pwSampling;
-	delete m_pwCaliper;
-	delete m_vcaliper;
-	delete m_hcaliper;
-	delete m_colormap;
-	delete m_mCaliper;
-	delete m_mSamplingLine;
-	delete m_MDSampling;
-	delete m_mTgc;
-	delete m_selectedMark;
-	delete m_args_params;
-	delete m_magnify;
-}
-
 void VirtualBox::functionLoader()
 {
     /*add instance function */
-    /*bar*/
-    m_status_bar    = StatusBar::instance();
-    m_engine->globalObject ().setProperty ("StatusBar", m_engine->newQObject (m_status_bar));
-
     if (m_engine->hasUncaughtException ()){
         qWarning() << "Error:" << __FILE__ << __LINE__ << "StatusBar " << m_engine->uncaughtExceptionLineNumber () << " " << m_engine->uncaughtException ().toString ();
     }
-    /*bar*/
 
-    /*add Info*/
-    m_info          = Info::instance();
-    m_engine->globalObject().setProperty("Info", m_engine->newQObject(m_info));
-
-    if (m_engine->hasUncaughtException()) {
-        qWarning() << "Error: " << __FILE__ << __LINE__ << "Info " << m_engine->uncaughtException().toString();
-    }
-    /*Info*/
-	/*add function! */
-	QDomNode node = m_config_xml.documentElement ();
-	/*io*/
-	m_mouse      = new MouseWidget(m_engine, node);
-
-	//NOTE functionLoader
-	m_colormap      = new ColorMap(m_engine, node);
-	m_mTgc          = new TgcParams(m_engine, node);
-	m_selectedMark  = new SelectedMark(m_engine, node);
-	m_hcaliper      = new HCaliper(m_engine, node);
-	m_vcaliper      = new VCaliper(m_engine, node);
-	m_pwCaliper     = new PwCaliper(m_engine, node);
-	m_pwSampling    = new PwSampling(m_engine,  node);
-	m_pwParams      = new PWParams(m_engine, node);
-	m_mParams		= new MParams(m_engine, node);
-	m_roi           = new Roi(m_engine, node);
-	m_focus         = new Focus(m_engine, node);
-	m_mCaliper      = new MCaliper(m_engine, node);
-	m_mSamplingLine = new MSamplingLine(m_engine, node);
-	m_MDSampling	= new MDSampling(m_engine, node);
-	m_args_params   = new ArgsParams(m_engine, node);
-	m_magnify		= new Magnify(m_engine);
-
-
-	Args::instance()->addEngine(m_vbox_id, m_args_params);
-
-	/*dsc*/
-	m_dsc           = new DSC(m_engine, node);
-	//Add by jiawentao 2016/7/22, dscupdate后，通过dbus 获取实际的dsc大小，给Roi等插件使用
-	connect(m_dsc, &DSC::dscUpdateSignal, [=](){ setdscRect(VDBus::instance()->dscInterface()->getImgRect(m_vbox_id)); });
-
-
-	m_replayer   = new Replayer(m_engine, node);
-	ReplayManager::instance()->regisiterObj(m_vbox_id, m_replayer);
-
-	connect(m_mouse, SIGNAL(move(QPoint)), m_replayer, SIGNAL(move(QPoint)));
-	connect(m_mouse, SIGNAL(leftClicked()), m_replayer, SIGNAL(leftClicked()));
-	connect(m_mouse, SIGNAL(rightClicked()), m_replayer, SIGNAL(rightClicked()));
-
-	//ReplayManager::instance()->setMouseControl(m_mouse);
-	connect(m_dsc,           SIGNAL(colorMap(QImage &,QImage &, QImage &)), m_colormap, SIGNAL(colorMapChanged(QImage &,QImage &, QImage &)));
-	connect(m_roi,           SIGNAL(fpgaChanged()),                         this,       SLOT(fpgaControlUpdate()));
-	connect(m_mSamplingLine, SIGNAL(fpgaChanged()),                         this, SLOT(fpgaControlUpdate()));
-	connect(m_pwSampling,    SIGNAL(fpgaChanged()),                         this, SLOT(fpgaControlUpdate()));
-}
-//ADD byjiawentao 2016/8/2, brief:这个invokable 开放给脚本，切换模式的时候，DSCUpdate之后就调用一下，能保证Roi与真实图像一致
-void VirtualBox::getDscRect()
-{
-//	qDebug()<<__FUNCTION__<< "before "<<m_type << m_mode<<m_vbox_id << dscRect();
-	setdscRect(VDBus::instance()->dscInterface()->getImgRect(m_vbox_id));
-//	qDebug()<<__FUNCTION__<< "after "<<m_type << m_mode<<m_vbox_id << dscRect();
 }
 
 void VirtualBox::jsLoader()
 {
-	QString contentJS(m_js_buffer);
-
-#ifdef SCRIPT_DEBUGGER
-	if (!m_debugger) {
-		m_debugger = new QScriptEngineDebugger(this);
-		m_debugWindow = m_debugger->standardWindow();
-		//		m_debugWindow->setWindowModality(Qt::ApplicationModal);
-		m_debugWindow->resize(1024, 768);
-
-	}
-	m_debugger->attachTo(m_engine);
-	m_debugger->action(QScriptEngineDebugger::InterruptAction)->trigger();
-#endif
-
-	//NOTE Just check js syntax, however there is no use. it cann't check running exception. Everywhere you call QScriptValue::call(), the call result also can throw a exception.
-
-	//	QScriptSyntaxCheckResult result = m_engine->checkSyntax(contentJS);
-	//	if (result == QScriptSyntaxCheckResult::Error) {
-	//		qDebug()<<"JS check...\n\r Error:" << result.errorLineNumber()<< result.errorColumnNumber() <<result.errorLineNumber();
-	//	} else if (result == QScriptSyntaxCheckResult::Intermediate) {
-	//		qDebug()<<"JS check...\n\r Intermediate: The program is incomplete."<<result.errorMessage();
-	//	} else {
-	//		qDebug()<<"JS check...\n\r OK";
-	//	}
-
-	m_engine->evaluate (contentJS);
-
-	if(m_engine->hasUncaughtException()) {
-		qDebug() << "Error:" << __FILE__ << __LINE__<< "jsLoader: evaluate() "<< m_engine->uncaughtExceptionLineNumber() \
-				 << " "<< m_engine->uncaughtException ().toString ();
-		m_engine->clearExceptions();
-	}
-	//NOTE by jiawentao 2016/8/3, detail:定时器轮询，捕获JS运行时异常。如果影响效率，可以去掉。去掉的代价是，脚本开放后，运行时异常不能观察到。
-	//暂时没有更好的方法。
 
 
-    /* add third js folder*/
-    QDir pluginsDir(QDir::currentPath() + "/third/js");
-
-    foreach(QString fileName, pluginsDir.entryList(QDir::Files)) {
-        QFile file(QDir::currentPath() + "/third/js" + fileName);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-            continue;
-
-        QByteArray content =  file.readAll();
-
-        m_engine->evaluate (content);
-
-        if(m_engine->hasUncaughtException()) {
-            qDebug() << "Error:" << "third/js/" + fileName << "jsLoader: evaluate() "<< m_engine->uncaughtExceptionLineNumber() \
-                     << " "<< m_engine->uncaughtException ().toString ();
-            m_engine->clearExceptions();
-        }
-    }
-
-	startTimer(100);
-
-}
-void VirtualBox::timerEvent(QTimerEvent *)
-{
-	if (m_engine->hasUncaughtException()) {
-		qDebug()<<__FILE__ << __LINE__ << "JS throw  Exception: at line " << m_engine->uncaughtExceptionLineNumber() \
-			   <<" " << m_engine->uncaughtException ().toString ();
-		m_engine->clearExceptions();
-	}
-}
-void VirtualBox::PowerOn()
-{
-}
-
-void VirtualBox::PowerOff()
-{
-
-}
-
-void VirtualBox::setEchoRect(qreal x, qreal y, qreal w, qreal h)
-{
-	qDebug()<<__FILE__<<__FUNCTION__<<x << y << w << h;
-	m_echo->setEchoRect(x, y, w, h);
-}
-void VirtualBox::goVirtual()
-{
-	if (m_memory_ultrasound ) {
-		delete m_memory_ultrasound;
-		m_memory_ultrasound = 0;
-	}
-	m_type = "memory";
-	/*备份m_device到MemoryUltrasound*/
-	m_memory_xml = m_device_xml->cloneNode().toDocument();
-	m_memory_ultrasound = new MemoryUltrasound(&m_memory_xml);
-
-	m_fpga_control->changedSource(&m_memory_xml);
-	m_ultrasound = m_memory_ultrasound;
-
-	m_device_ultrasound->decRef();
-
-	VDBus::instance()->imageInterface()->setFreeze(m_vbox_id);
-	int maxFrame = VDBus::instance()->dscInterface()->getMaxReplay(m_vbox_id);
-	QString fps = VDBus::instance()->dscInterface()->getFps(m_vbox_id);
-
-	qDebug() << __FILE__<<__LINE__<<"get maxFrame:"<<maxFrame <<"fps:"<< fps;
-
-	CHECK_DIVISOR(fps.toFloat());
-	m_replayer->setSpeed(1000/fps.toFloat());
-	m_replayer->setMin(0);
-	m_replayer->setMax(maxFrame);
-	m_replayer->setStart(0);
-	m_replayer->setEnd(maxFrame);
-	m_replayer->setCurr(maxFrame);
-	m_replayer->upParams();
-    m_replayer->setIsAuto(true);
-
-	connect (ReplayManager::instance(), SIGNAL(currentFrame(int, int)), this, SLOT(replayerFrame(int, int)));
-}
-
-void VirtualBox::goReal()
-{
-
-	m_ultrasound = m_device_ultrasound;
-
-	if (m_memory_ultrasound) {
-		delete m_memory_ultrasound;
-		m_memory_ultrasound = 0;
-	}
-	m_fpga_control->changedSource(m_device_xml);
-
-	m_replayer->setIsAuto(false);
-	m_replayer->upParams();
-
-	if (m_type == "memory") {
-		VDBus::instance()->imageInterface()->setRunning(m_vbox_id);
-		disconnect (ReplayManager::instance(), SIGNAL(currentFrame(int, int)), this, SLOT(replayerFrame(int, int)));
-	}
-
-	m_type = "device";
-	m_device_ultrasound->addRef();
-}
-
-/*Q_INVOKABLE*/
-void VirtualBox::switchUltrasound(QString source)
-{
-	if (source == m_type) return;
-
-	if (source == "device") {
-		goReal();
-	} else if (source == "memory") {
-		goVirtual();
-	} else if (source == "files") {
-		//        goFile();
-	} else {
-		goReal();
-	}
-}
-
-void VirtualBox::switchFocus(bool flag)
-{
-	if (true == flag) {
-		connect(m_io, SIGNAL(move(QPoint)),   m_mouse, SIGNAL(move(QPoint))    );
-		connect(m_io, SIGNAL(leftClicked()),  m_mouse, SIGNAL(leftClicked())   );
-		connect(m_io, SIGNAL(rightClicked()), m_mouse, SIGNAL(rightClicked())  );
-		connect(m_io, SIGNAL(stateChanged()), m_mouse, SIGNAL(paramsChanged()) );
-	}else {
-		disconnect(m_io, SIGNAL(move(QPoint)),   m_mouse, SIGNAL(move(QPoint))    );
-		disconnect(m_io, SIGNAL(leftClicked()),  m_mouse, SIGNAL(leftClicked())   );
-		disconnect(m_io, SIGNAL(rightClicked()), m_mouse, SIGNAL(rightClicked())  );
-		disconnect(m_io, SIGNAL(stateChanged()), m_mouse, SIGNAL(paramsChanged()) );
-	}
-}
-
-
-QString VirtualBox::mode() const
-{
-	return m_mode;
-}
-
-void VirtualBox::setMode(QString mode)
-{
-	m_mode = mode;
-	QScriptValue ret;
-	if (mode == "B") {
-		m_ultrasound->modeB();
-		QScriptValue mode = m_engine->globalObject().property("ModeB");
-		ret = mode.call(QScriptValue());
-
-	}else if (mode == "C"){
-		m_ultrasound->modeC();
-		QScriptValue mode = m_engine->globalObject().property("ModeC");
-		ret = mode.call(QScriptValue());
-	}else if (mode == "M") {
-		m_ultrasound->modeM();
-		QScriptValue mode = m_engine->globalObject().property("ModeM");
-		ret = mode.call(QScriptValue());
-	}else if (mode == "D") {
-		m_ultrasound->modeD();
-		QScriptValue mode = m_engine->globalObject().property("ModeD");
-		ret = mode.call(QScriptValue());
-	}else {
-		qDebug()<<"no such mode"<< mode;
-		return;
-	}
-	if (!ret.isValid()) {
-		qDebug()<<"setMode call JS failed, mode:"<< mode;
-	}
-	VDBus::instance()->imageInterface()->setRunning(m_vbox_id);
-
-	realUpFpga();
-	emit modeChanged();
-}
-
-bool VirtualBox::selected() const
-{
-	return m_selectedMark->selected();
-}
-
-void VirtualBox::setSelected(bool b)
-{
-	//qDebug () << __FILE__<< __LINE__ <<b << ID();
-	emit m_replayer->selected(b);
-	if (b == selected()) return ;
-	m_selectedMark->setselected(b);
-	switchFocus(b);
-	emit selectedChanged();
-}
-
-void VirtualBox::fpgaControlUpdate()
-{
-	if (m_type == "device") {
-		Args::instance()->updateArgs();
-		m_device_ultrasound->updateCtrlTable(false);
-	}
 }
 
 QScriptEngine *VirtualBox::engine()
@@ -708,99 +1060,44 @@ QScriptEngine *VirtualBox::engine()
 	return m_engine;
 }
 
-void VirtualBox::setFreeze(bool v)
+int   VirtualBox::dscrecth () const
 {
-	if (v == m_freeze) return;
-
-	m_freeze = v;
-	QString type = m_freeze ? "memory" : "device";
-
-	switchUltrasound( type );
-	emit freezeChanged();
+    return m_dsc_image_h;
 }
 
-bool VirtualBox::freeze() const
+int VirtualBox::dscrectw () const
 {
-	return m_freeze;
+    return m_dsc_image_w;
 }
 
-QString VirtualBox::getType() const
+int VirtualBox::dscrectx () const
 {
-	return m_type;
+    return m_dsc_image_x;
 }
 
-QString VirtualBox::managerMode() const
+int VirtualBox::dscrecty () const
 {
-	return m_parent_mode;
-}
-
-void VirtualBox::log(QVariant log)
-{
-#ifdef SCRIPT_LOG_SUPPORT
-	qDebug() << __FILE__<<__FUNCTION__<< log;
-#endif
-}
-void VirtualBox::stringLog(QString log)
-{
-	qDebug() << __FILE__ << __FUNCTION__ << log;
-}
-
-void VirtualBox::numLog(qreal log)
-{
-	qDebug() << __FILE__ << __FUNCTION__ <<log;
-}
-
-Replayer* VirtualBox::replayerInstance()
-{
-	return m_replayer;
-}
-
-void VirtualBox::layout(QString parent, QString me, int id, QString mode, QRect &rect)
-{
-	m_layout_w = parent + ":" + me;
-
-	VDBus::instance()->imageInterface()->SetUIParams(parent, me, id, mode, rect);
+    return m_dsc_image_y;
 }
 
 QRect VirtualBox::dscRect() const
 {
-	return m_dsc_image_rect;
+    return QRect(m_dsc_image_x, m_dsc_image_y, \
+                 m_dsc_image_w, m_dsc_image_h);
 }
 
-void VirtualBox::setdscRect(QRect r)
+void VirtualBox::setdscRect (QRect rect)
 {
-//	qDebug()<<__FUNCTION__<<r;
-	if (r == m_dsc_image_rect) {
-		return;
-	}
+    if (rect == dscRect()) {
+        return;
+    }
 
-	m_dsc_image_rect = r;
+    m_dsc_image_x = rect.x ();
+    m_dsc_image_y = rect.y ();
+    m_dsc_image_w = rect.width ();
+    m_dsc_image_h = rect.height ();
 
-	emit dscRectChanged();
-}
-
-int VirtualBox::dscrectx() const
-{
-	return m_dsc_image_rect.x();
-}
-int VirtualBox::dscrecty() const
-{
-	return m_dsc_image_rect.y();
-}
-int VirtualBox::dscrectw() const
-{
-	return m_dsc_image_rect.width();
-}
-int VirtualBox::dscrecth() const
-{
-	return m_dsc_image_rect.height();
-}
-void VirtualBox::replayerFrame(int n, int id)
-{
-	//id match should replay, or id equal -1 means allReplay
-	if (m_vbox_id == id || -1 == id) {
-		VDBus::instance()->imageInterface()->ReplayFrame(m_vbox_id, n);
-	}
+    emit dscRectChanged ();
 }
 
 int VirtualBox::expectW() const
@@ -832,71 +1129,29 @@ void VirtualBox::setExpectPos(int x, int y)
     m_expect_dsc_y = y;
 }
 
+int VirtualBox::echoX () const
+{
+   return m_echo_x;
+}
 
-void VirtualBox::turnLR(int v)
+int VirtualBox::echoY () const
 {
-    QScriptValue turn = m_engine->globalObject().property("turnLR");
-    if (turn.isFunction()) {
-        QScriptValueList args;
-        args<< v;
-        turn.call(QScriptValue(), args);
-    }
+    return m_echo_y;
 }
-void VirtualBox::turnUD(int v)
-{
-    QScriptValue turn = m_engine->globalObject().property("turnUD");
-    if (turn.isFunction()) {
-        QScriptValueList args;
-        args<< v;
-        turn.call(QScriptValue(), args);
-    }
-}
-void VirtualBox::rotate(int angle)
-{
-    QScriptValue turn = m_engine->globalObject().property("rotate");
-    if (turn.isFunction()) {
-        QScriptValueList args;
-        args<< angle;
-        turn.call(QScriptValue(), args);
-    }
-}
-void VirtualBox::inverseGary(int v)
-{
-    QScriptValue turn = m_engine->globalObject().property("inverseGary");
-    if (turn.isFunction()) {
-        QScriptValueList args;
-        args<< v;
-        turn.call(QScriptValue(), args);
-    }
-}
-void VirtualBox::inverseBlood(int v)
-{
-    QScriptValue turn = m_engine->globalObject().property("inverseBlood");
-    if (turn.isFunction()) {
-        QScriptValueList args;
-        args<< v;
-        turn.call(QScriptValue(), args);
-    }
-}
-//void VirtualBox::zoom(qreal factor)
-//{
-//    QScriptValue zoom = m_engine->globalObject().property("zoom");
-//    if (zoom.isFunction()) {
-//        QScriptValueList args;
-//        args << factor;
-//        zoom.call(QScriptValue(), args);
-//    }
 
-//    if (factor == 0) {
-//        m_magnify->setShow(false);
-//        m_magnify->setActive(false);
-//        return ;
-//    } else {
-//        m_magnify->setShow(true);
-//        m_magnify->setActive(true);
-//    }
-//    m_magnify->setRatio(factor);
+int VirtualBox::echoW () const
+{
+    return m_echo_w;
+}
 
-//}
+int VirtualBox::echoH () const
+{
+    return m_echo_h;
+}
+
+int VirtualBox::id ()  const
+{
+    return m_id;
+}
 
 #include "virtual_box.moc"

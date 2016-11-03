@@ -4,7 +4,8 @@ QT += qml quick widgets script scripttools xml
 CONFIG += c++11
 
 SOURCES += main.cpp \
-    virtual_box.cpp
+    virtual_box.cpp \
+    device_ultrasound.cpp
 
 RESOURCES += qml.qrc
 
@@ -15,4 +16,5 @@ QML_IMPORT_PATH =
 include(deployment.pri)
 
 HEADERS += \
-    virtual_box.h
+    virtual_box.h \
+    device_ultrasound.h

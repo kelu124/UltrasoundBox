@@ -13,8 +13,12 @@
 #include <QList>
 
 #include <QRect>
+#include <QObject>
+#include <QString>
 
-class RenderThread;
+#include "device_ultrasound.h"
+
+class RenderItem;
 class VirtualBox:public QObject
 {
 	Q_OBJECT
@@ -34,29 +38,30 @@ class VirtualBox:public QObject
 
 	Q_PROPERTY(int     echoW    READ echoW)
 	Q_PROPERTY(int     echoH    READ echoH)
+    Q_PROPERTY(int     echoX    READ echoX)
+    Q_PROPERTY(int     echoY    READ echoY)
 
+    Q_PROPERTY(int     id       READ id)
 public:
 
-    VirtualBox(int id, DeviceUltrasound *device,   \
-                           QDomDocument     *deviceXml, \
-                           QDomDocument     *probeXml, \
-                     const QDomDocument     &softXml,  \
-                     const QDomDocument     &configXml, \
-                           QQuickItem *gui, IOControls *io, \
-                    QString runMode, QString parentMode, VirtualBoxManager *);
-
-	VirtualBox() {}
+    VirtualBox(int id
+             , Ultrasound       *device   \
+             , QDomDocument     *deviceXml \
+             , QDomDocument     *probeXml \
+             , const QDomDocument     &softXml  \
+             , const QDomDocument     &configXml \
+             , QQuickItem *gui);
 
 	~VirtualBox();
 
-    static QList <QThread *> virtual_ui_threads;
-
+    int     id()    const;
 	/*PROPERTY*/
     int     dscrectx() const;
     int     dscrecty() const;
     int     dscrectw() const;
     int     dscrecth() const;
     QRect   dscRect()  const;
+    void    setdscRect(QRect );
 
 	int expectW() const;
 	int expectH() const;
@@ -65,33 +70,30 @@ public:
 	void setExpectSize(int w, int h);
     void setExpectPos(int x, int  y);
 
+    int echoX() const;
+    int echoY() const;
+    int echoW() const;
+    int echoH() const;
+
 	QScriptValue callerFunction(QString caller);
-	QScriptValue callerFunction(QString caller,int , ...);
     QScriptValue callerFpgaFunction(QString var, QString value);
     QScriptValue callerSoftFunction(QString var, QString value);
 
 	QScriptEngine  *engine();
-
-public Q_SLOTS:
-    void uiReady();
 
 private:
 	void jsLoader();
 	void functionLoader();
 	void functionUnLoader();
 
-    RenderThread   *m_render_thread;
+    RenderItem     *m_render_ui;
 
-    QRect           m_dsc_image_rect;
 	QScriptEngine  *m_engine;
 
 	FpgaControl    *m_fpga_control;
 	SoftControl    *m_soft_control;
 
-	DeviceUltrasound *m_device_ultrasound;
-	MemoryUltrasound *m_memory_ultrasound;
-
-	Ultrasound       *m_ultrasound;
+    Ultrasound       *m_ultrasound;
 
 	QDomDocument    m_config_xml;
 	QDomDocument    m_memory_xml;
@@ -100,34 +102,26 @@ private:
 	QDomDocument    *m_probe_xml;
 	QDomDocument    *m_device_xml;
 
-	IOControls      *m_io;
-
 	/*Show Image*/
 	QQuickItem     *m_gui_parent;
-
-	/*for script debugger*/
-#ifdef SCRIPT_DEBUGGER
-	QScriptEngineDebugger *m_debugger;
-	QMainWindow *m_debugWindow;
-#endif
 
 	QString         m_type;
 
 	/*control object*/
 
-    /*对图像端预设的图像大小*/
-	int				m_expect_dsc_w, m_expect_dsc_h;
-    int             m_expect_dsc_x, m_expect_dsc_y;
+    int   m_echo_w, m_echo_h;
+    int   m_echo_x, m_echo_y;
 
-	int             m_vbox_id;
+    int	  m_expect_dsc_w, m_expect_dsc_h;
+    int   m_expect_dsc_x, m_expect_dsc_y;
 
+    int   m_dsc_image_x,  m_dsc_image_y;
+    int   m_dsc_image_w,  m_dsc_image_h;
 
-	QDomDocument    m_args_layout;
+    int   m_id;
 
-	/*eplugins*/
-	QList<QQuickPaintedItem *> m_eplugins;
-
-    /**/
+Q_SIGNALS:
+    void dscRectChanged();
 };
 
 #endif // VIRTUALBOX_H
