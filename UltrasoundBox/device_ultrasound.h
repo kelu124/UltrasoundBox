@@ -120,20 +120,15 @@ class Ultrasound:public QObject{
 	Q_OBJECT
 	Q_PROPERTY(QString source READ source WRITE setSource NOTIFY sourceChanged)
 public:
-	Ultrasound(QString source):\
-		m_ultrasound_c_size(0), \
-		m_ultrasound_b_size(0), \
-		m_ultrasound_d_size(0), \
-		m_ultrasound_m_size(0), \
-		m_socket_max(4){
+    enum DeviceType {
+        DEVICE, MEMORY
+    };
+    Ultrasound( QDomDocument &machine, \
+                QDomDocument &fpga,    \
+                QDomDocument &soft): m_machine(machine), \
+                                     m_fpga(fpga), \
+                                     m_soft(soft){
 
-        /*FIXME m_sock_max */
-		m_ultrasound_b_size = 512*256*1;
-		m_ultrasound_c_size = 512*256*1;
-		m_ultrasound_d_size = 4;
-		m_ultrasound_m_size = 512;
-
-		m_source = source;
 	}
 
 	virtual ~Ultrasound() {
@@ -141,39 +136,18 @@ public:
 	}
 
 	virtual  int          updateCtrlTable(bool) { return -1; }
+    virtual  int          updateSoftTable(bool) { return -1; }
+
 	virtual  QList <int>  updateProbesInfo(){ QList <int> list; return list;}
 
-	QString source() const{
-		return m_source;
-	}
-
-	void setSource(QString &source) {
-		if (source == m_source) {
-			return;
-		}
-
-		m_source = source;
-		emit sourceChanged();
-	}
-
-	virtual void modeB() { return;}
-	virtual void modeC() { return;}
-	virtual void modeD() { return;}
-	virtual void modeM() { return;}
-
-Q_SIGNALS:
-	void sourceChanged();
 
 protected:
-	QString          m_source;
 
-	int  m_ultrasound_c_size;
-	int  m_ultrasound_b_size;
-	int  m_ultrasound_d_size;
-	int  m_ultrasound_m_size;
+    QDomDocument     m_machine;
+    QDomDocument     m_fpga;
+    QDomDocument     m_soft;
 
-	int  m_socket_max;
-
+    DeviceType      m_type;
 };
 
 
@@ -181,14 +155,13 @@ class DeviceUltrasound:public Ultrasound
 {
 	Q_OBJECT
 public:
-	static DeviceUltrasound *instance();
-
-	void modeB();
-	void modeC();
-	void modeD();
-	void modeM();
+    DeviceUltrasound( QDomDocument &machine, \
+                      QDomDocument &fpga,    \
+                      QDomDocument &soft);
 
 	int    updateCtrlTable(bool);
+    int    updateSoftTable(bool);
+
 	QList <int>  updateProbesInfo(){ return updateProbes();}
 	QList <int>  updateProbes();
 
@@ -232,7 +205,7 @@ private Q_SLOTS:
 	}
 
 private:
-	DeviceUltrasound();
+
 	int    _updateCtrlTable();
 
 	bool                m_linked;
@@ -246,16 +219,17 @@ class MemoryUltrasound:public Ultrasound
 {
 	Q_OBJECT
 public:
-	MemoryUltrasound(QDomDocument *doc);
+    MemoryUltrasound(QDomDocument &machine, QDomDocument &fpga, QDomDocument &soft);
 	virtual ~MemoryUltrasound();
 
 	int    updateCtrlTable(bool);
+    int    updateSoftTable(bool);
+
 	QList<int>   updateProbesInfo();
 
+    void
 private:
-    QDomDocument     m_doc;
-	/*B C D M*/
-	QString          m_type;
+
 };
 
 #endif

@@ -5,7 +5,10 @@ CONFIG += c++11
 
 SOURCES += main.cpp \
     virtual_box.cpp \
-    device_ultrasound.cpp
+    device_ultrasound.cpp \
+    control_object.cpp \
+    ultrasound.cpp \
+    eplugins_manager.cpp
 
 RESOURCES += qml.qrc
 
@@ -17,4 +20,8 @@ include(deployment.pri)
 
 HEADERS += \
     virtual_box.h \
-    device_ultrasound.h
+    device_ultrasound.h \
+    control_object.h \
+    ultrasound.h \
+    queue.h \
+    eplugins_manager.h

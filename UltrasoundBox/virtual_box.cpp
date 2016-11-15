@@ -22,8 +22,10 @@
 
 #include <QDomNode>
 
+#include <QDir>
 #include <QQuickWindow>
 
+#include "eplugins_manager.h"
 #include <qmath.h>
 
 class RenderBase : protected QOpenGLFunctions
@@ -981,31 +983,35 @@ QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 	}while(0);
 
 VirtualBox::VirtualBox(int id \
-                     , Ultrasound *device \
-                     , QDomDocument     *deviceXml \
-                     , QDomDocument     *probeXml \
-                     , const QDomDocument     &softXml   \
-                     , const QDomDocument     &configXml \
+                     ,  QDomDocument     &machine   \
+                     ,  QDomDocument     &deviceXml \
+                     ,  QDomDocument     &probeXml  \
+                     ,  QDomDocument     &softXml   \
+                     ,  QDomDocument     &configXml \
                      , QQuickItem *gui)
 {
-    Q_UNUSED (device);
 
     m_id = id;
 
 	/*member variables assignment*/
-	m_device_xml = deviceXml;
-	m_probe_xml  = probeXml;
-	m_soft_xml   = softXml.cloneNode().toDocument();
+    m_machine_xml= machine.cloneNode ().toDocument ();
+    m_probe_xml  = probeXml.cloneNode ().toDocument ();
 	m_config_xml = configXml.cloneNode().toDocument();
 	m_gui_parent = gui;
 
 	/*engine init*/
 	m_engine = new QScriptEngine;
 
-	m_ultrasound        = 0;
+    m_ultrasound  =  Ultrasound::newDevice (m_machine_xml, \
+                                            deviceXml,  \
+                                            softXml,    \
+                                            m_engine);
 
-    QSize size(512, 512);
+    jsLoader ();
+    functionLoader ();
+
     m_render_ui = new RenderItem(m_config_xml.documentElement (), m_gui_parent);
+    EpluginsManager::instance ()->newItems (m_gui_parent, m_engine, id);
 }
 
 
@@ -1052,7 +1058,26 @@ void VirtualBox::functionLoader()
 void VirtualBox::jsLoader()
 {
 
+    /* add third js folder*/
+    QDir pluginsDir(qApp->applicationDirPath() + "/third/js");
 
+    foreach(QString fileName, pluginsDir.entryList(QDir::Files)) {
+        QFile file(QDir::currentPath() + "/third/js" + fileName);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        QByteArray content =  file.readAll();
+        file.close ();
+
+        m_engine->evaluate (content);
+
+        if(m_engine->hasUncaughtException()) {
+            qDebug() << "Error:" << "third/js/" + fileName << "jsLoader: evaluate() "<< m_engine->uncaughtExceptionLineNumber() \
+                     << " "<< m_engine->uncaughtException ().toString ();
+            m_engine->clearExceptions();
+            exit(0);
+        }
+    }
 }
 
 QScriptEngine *VirtualBox::engine()
@@ -1129,25 +1154,6 @@ void VirtualBox::setExpectPos(int x, int y)
     m_expect_dsc_y = y;
 }
 
-int VirtualBox::echoX () const
-{
-   return m_echo_x;
-}
-
-int VirtualBox::echoY () const
-{
-    return m_echo_y;
-}
-
-int VirtualBox::echoW () const
-{
-    return m_echo_w;
-}
-
-int VirtualBox::echoH () const
-{
-    return m_echo_h;
-}
 
 int VirtualBox::id ()  const
 {
