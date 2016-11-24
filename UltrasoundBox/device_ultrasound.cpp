@@ -11,7 +11,7 @@
 #include <time.h>
 #include <QMutexLocker>
 
-
+#if 0
 static void setFpgaAttrByAttr(QDomDocument *doc, QString attr, int value)
 {
 	QDomNode node = doc->documentElement().firstChildElement();
@@ -599,3 +599,4 @@ QList<int>   MemoryUltrasound::updateProbesInfo(){
 	QList<int> list;
 	return list;
 }
+#endif

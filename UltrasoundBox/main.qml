@@ -3,7 +3,10 @@ import QtQuick.Window 2.2
 
 Rectangle {
     visible: true
-    width: 768
-    height: 512
+    width: 1024
+    height: 768
+
+    color: "red"
+
 
 }

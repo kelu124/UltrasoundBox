@@ -1,4 +1,4 @@
-#include "virtual_box.h"
+﻿#include "virtual_box.h"
 
 #include <QDebug>
 
@@ -22,10 +22,13 @@
 
 #include <QDomNode>
 
+#include <QDir>
 #include <QQuickWindow>
 
+#include "eplugins_manager.h"
 #include <qmath.h>
 
+#include <QMutex>
 class RenderBase : protected QOpenGLFunctions
 {
 public:
@@ -45,6 +48,9 @@ public:
     void setGeoTrans (QDomNode);
     void setGeoProbe (QDomNode);
 
+    QByteArray readFile(QString &);
+    void loadResure(QDomNode);
+
     QMatrix4x4 mModelMatrix;
     QMatrix4x4 mViewMatrix;
     QMatrix4x4 mProjectionMatrix;
@@ -56,6 +62,30 @@ public:
     QVector<QVector3D> colorsMapC;
     QVector<QVector3D> colorsMapM;
     QVector<QVector3D> colorsMapPW;
+
+    QVector<QVector3D> mVerticesB;
+    QVector<QVector2D> mTexcoordsB;
+
+    QVector<QVector3D> mVerticesC;
+    QVector<QVector2D> mTexcoordsc;
+
+    QVector<QVector3D> mVerticesM;
+    QVector<QVector2D> mTexcoordsM;
+
+    QVector<QVector3D> mVerticesPW;
+    QVector<QVector2D> mTexcoordsPW;
+
+
+    struct mapData {
+        unsigned char b_colormaplist[8][256][3];
+        unsigned char c_colormaplist[8][256][3];
+    };
+
+    struct st_img_trans{
+        int            grayReverse;
+        struct         mapData colormap;
+    }m_img_trans;
+
 
     struct st_geo_trans{
         int        angle;
@@ -80,7 +110,59 @@ public:
         QString type;
 
     }m_probe;
+
+    QMutex      m_mutex;
 };
+
+QByteArray RenderBase::readFile (QString &n)
+{
+    QFile file(n);
+    if (!file.open (QFile::ReadOnly)) {
+        return QByteArray();
+    }
+
+    QByteArray data = file.readAll ();
+
+    file.close ();
+    return data;
+}
+void RenderBase::loadResure (QDomNode root)
+{
+    if (root.isNull ()) return;
+
+    qDebug() << root.toElement ().tagName ();
+
+    QDomNode node = root.firstChildElement ();
+
+    while(!node.isNull ()) {
+        if (node.isElement ()) {
+            if (node.toElement ().tagName () == QString("b")) {
+                QString name = node.toElement ().attribute ("value", QString("0"));
+                QByteArray data = readFile (name);
+
+                if (!data.isEmpty ()) {
+                    for (int i = 0; i < 8; i++) {
+                        for (int j = 0; j < 256; j++) {
+                            char ch = data.at (i * 256 + j);
+                            m_img_trans.colormap.b_colormaplist[i][j][0] = static_cast<unsigned char>(ch);
+                            m_img_trans.colormap.b_colormaplist[i][j][1] = static_cast<unsigned char>(ch);
+                            m_img_trans.colormap.b_colormaplist[i][j][2] = static_cast<unsigned char>(ch);
+                        }
+                    }
+                }
+            }else if (node.toElement ().tagName () == QString("c")){
+                /*add you  code*/
+            }else if (node.toElement ().tagName () == QString("d")) {
+                /*add your code*/
+            }else if (node.toElement ().tagName () == QString("m")) {
+                /*add your code*/
+            }
+        }
+
+        node = node.nextSiblingElement ();
+    }
+
+}
 
 void RenderBase::setViewPort (int vx, int vy, int vw, int vh)
 {
@@ -95,6 +177,7 @@ void RenderBase::setViewPort (QRect rect)
 {
     setViewPort(rect.x(), rect.y(), rect.width(), rect.height());
 }
+
 
 void RenderBase::setGeoTrans (QDomNode root)
 {
@@ -181,8 +264,6 @@ void RenderBase::setGeoProbe (QDomNode node)
 
 
 struct st_opengl_data {
-    int    flag;
-    float  angle;
     QOpenGLTexture    *texture;
     QVector<QVector3D> vertices;
     QVector<QVector2D> vercoords;
@@ -220,20 +301,15 @@ private:
 
     QOpenGLShaderProgram	 program;
 
-    int mModelMatrixHandle;
-    int mViewMatrixHandle;
-    int mProjectionMatrixHandle;
-
+    int mMVPMatrixHandle;
     int mPositionHandle;
     int mTexCoordHandle;
     int mColorArrayhandle;
 
-
     struct st_scan{
         float depth;
 
-        int    complex_len;
-        struct st_complex complex[2];
+        struct st_opengl_data mData;
     }m_scan;
 
     struct st_textureGeo{
@@ -244,15 +320,26 @@ private:
         512
     };
 
-    QByteArray      mData;
+    QByteArray      mByteArrayData;
 };
 
 RenderB::RenderB(QSize size) : program(0)
 {
     mSize = size;
-    mData.resize (size.width () * size.height ());
+    mByteArrayData.resize (size.width () * size.height ());
 
-    memset (mData.data (), 255, size.width () * size.height ());
+    memset (mByteArrayData.data (),  0, size.width () * size.height ());
+
+    colorsMapB.clear ();
+    for (int i = 0; i < 256; i++) {
+        colorsMapB << QVector3D(i, i, i);
+    }
+
+    m_texture_geo.lines   = 256;
+    m_texture_geo.samples = 512;
+
+    m_img_trans.grayReverse = 0;
+
 }
 
 
@@ -273,190 +360,41 @@ void RenderB::initialize()
 
 void RenderB::createGeometry ()
 {
-    struct point
-    {
-        GLfloat x;
-        GLfloat y;
-    };
+    mVerticesB  << QVector3D(-1, -1, 0.0f) \
+                << QVector3D( 1, -1, 0.0f) \
+                << QVector3D( 1,  1, 0.0f) \
+                << QVector3D(-1,  1, 0.0f);
 
-//    //make texture vertices and coord
-//    GLint lines   = m_texture_geo.lines;
-//    GLint samples = m_texture_geo.samples;
-//    Q_UNUSED (samples);
+    mTexcoordsB << QVector2D (0 , 0) \
+                 << QVector2D (1 , 0) \
+                 << QVector2D (1,  0) \
+                 << QVector2D (0,  1);
+    mViewMatrix.setToIdentity ();
+    mViewMatrix.lookAt (QVector3D (0.0f, 0.0f, 1.001f), QVector3D(0.0f, 0.0f, -5.0f), QVector3D(0.0f, 1.0f, 0.0f));
 
-//    GLfloat radius = m_probe.radius;
-//    GLfloat depth  = m_scan.depth;
-
-//    GLfloat theta  = m_probe.angle * 3.1415926 / 180/2;
-//    GLfloat theta0 = m_probe.angle * 3.1415926 / 180 / (lines - 1);
-
-//    GLfloat head = radius * cos(theta);
-//    GLfloat scal = (radius + depth - head )/mSize.height ();
-
-//    GLfloat ratex	= (mSize.width ()/2) * scal;
-//    GLfloat ratey	= (depth + radius - radius * cos(theta))/2;
-
-//    GLfloat delta = (depth + radius - radius*cos(theta)) / 2.0 + radius*cos(theta);
-
-
-//    point pt[2];
-
-//    GLfloat pt_x = 0.0;
-//    GLfloat pt_y = 0.0;
-
-//    for (int i = 0; i < m_scan.complex_len; i++) {
-//        GLfloat angle;
-//        angle = m_scan.complex[i].opengl_data_l.angle;
-//        m_scan.complex[i].opengl_data_l.vertices.clear ();
-
-//        for (int k = 0; k < lines; k++) {
-//            //左下
-//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
-//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
-
-//            //左上
-//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
-//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
-
-//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
-//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
-
-
-//            //顶点
-//            m_scan.complex[i].opengl_data_l.vertices << QVector2D(pt[0].x, pt[0].y)  \
-//                        << QVector2D(pt[1].x, pt[1].y);
-//            //纹理坐标
-//            m_scan.complex[i].opengl_data_l.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
-//                        << QVector2D(1.0, 1.0 * i / (lines - 1));
-//        }
-
-//        angle = m_scan.complex[i].opengl_data_r.angle;
-//        m_scan.complex[i].opengl_data_r.vertices.clear ();
-
-//        for (int k = 0; k < lines; k++) {
-//            //左下
-//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
-//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
-
-//            //左上
-//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
-//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
-
-//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
-//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
-
-
-//            //顶点
-//            m_scan.complex[i].opengl_data_r.vertices << QVector2D(pt[0].x, pt[0].y)  \
-//                        << QVector2D(pt_x, -pt_y);
-//            //纹理坐标
-//            m_scan.complex[i].opengl_data_r.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
-//                        << QVector2D(1.0, 1.0 * i / (lines - 1));
-//        }
-
-//        angle = m_scan.complex[i].opengl_data_m.angle;
-//        m_scan.complex[i].opengl_data_r.vertices.clear ();
-
-//        for (int k = 0; k < lines; k++) {
-//            //左下
-//            pt[1].x = (GLfloat)-(radius + depth)*sin(theta-i*theta0) /ratex  ;
-//            pt[1].y = (GLfloat)-((radius + depth)*cos(theta - i*theta0) - delta ) /ratey ;
-
-//            //左上
-//            pt[0].x = -radius*sin(theta - i*theta0) / ratex ;
-//            pt[0].y =  (delta - radius*cos(theta - i*theta0)) /ratey;
-
-//            pt_x = (pt[0].x - pt[1].x) * cos(-angle) - (pt[0].y - pt[1].y) * sin(-angle) + pt[1].x;
-//            pt_y = (pt[0].y - pt[1].y) * cos(-angle) - (pt[0].x - pt[1].x) * sin(-angle) + pt[1].y;
-
-
-//            //顶点
-//            m_scan.complex[i].opengl_data_r.vertices << QVector2D(pt[0].x, pt[0].y)  \
-//                        << QVector2D(pt[1].x, pt[1].y);
-//            //纹理坐标
-//            m_scan.complex[i].opengl_data_r.vercoords << QVector2D(0.0, 1.0 * i / (lines - 1))
-//                        << QVector2D(sin(angle), 1.0 * i / (lines - 1) + cos(angle));
-//        }
-//    }
-
-
-
-    GLint lines   =  m_texture_geo.lines;
-    GLint samples =  m_texture_geo.samples;
-    int w = mSize.width ();
-    int h = mSize.height ();
-    float scanProbeWidth = m_probe.linewidth;
-    float depth = m_scan.depth;
-
-    int scanwidth = int ((double)h * scanProbeWidth/depth);
-    int scandepth = int ((double)w * depth/scanProbeWidth);
-
-    double deta0 = scanwidth / lines;
-
-    double hscanwidth = scanwidth/2;
-    int hw = w/2;
-
-    point pt[2];
-
-    Q_UNUSED (samples);
-    Q_UNUSED (scandepth);
-
-    for (int i = 0; i < m_scan.complex_len; i++) {
-        GLfloat angle;
-        angle = m_scan.complex[i].opengl_data_l.angle;
-        m_scan.complex[i].opengl_data_l.vertices.clear ();
-        m_scan.complex[i].opengl_data_l.vercoords.clear ();
-
-        for (int i = 0; i < lines/2; i++) {
-            pt[0].x = -((hscanwidth - i * deta0)/hw);
-            pt[0].y = 1;
-
-            pt[1].x = -((hscanwidth - i * deta0)/hw);
-            pt[1].y = -1;
-        }
-
-        for (int i = lines/2; i < lines; i++) {
-            pt[0].x = ((i * deta0 - hscanwidth)/hw);
-            pt[0].y = 1;
-
-            pt[1].x = ((i * deta0 - hscanwidth)/hw);
-            pt[1].y = -1;
-
-        }
-    }
 }
 
 void RenderB::paint()
 {
+
+    mMVPMatrixHandle = program.uniformLocation("u_MVPMatrix");
+    mPositionHandle  = program.attributeLocation("a_Position");
+    mTexCoordHandle	 = program.attributeLocation("a_texCoord");
+    mColorArrayhandle = program.uniformLocation("color_value");
+
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable( GL_DEPTH_TEST );
     glEnable(GL_TEXTURE_2D);
 
-    for (int i = 0; i < m_scan.complex_len; i++) {
-        glActiveTexture (GL_TEXTURE0 +  3*i);
-        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_l.texture->textureId ());
-
-        glActiveTexture (GL_TEXTURE0 + 1 + 3*i);
-        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_m.texture->textureId ());
-
-        glActiveTexture (GL_TEXTURE0 + 2 + 3*i);
-        glBindTexture (GL_TEXTURE_2D, m_scan.complex[i].opengl_data_r.texture->textureId ());
-    }
-
     glActiveTexture (GL_TEXTURE0);
+    glBindTexture (GL_TEXTURE_2D, m_scan.mData.texture->textureId ());
 
+    m_scan.mData.texture->bind();
     program.bind();
     drawDSC();
     program.release();
-
-    for (int i = 0; i < m_scan.complex_len; i++) {
-        m_scan.complex[i].opengl_data_l.texture->release ();
-        m_scan.complex[i].opengl_data_m.texture->release ();
-        m_scan.complex[i].opengl_data_r.texture->release ();
-    }
-
-
+    m_scan.mData.texture->release ();
 }
 
 void RenderB::setMap (int id, unsigned char *map, int size)
@@ -471,73 +409,20 @@ void RenderB::setMap (int id, unsigned char *map, int size)
 
 void RenderB::initShaders()
 {
-    initializeOpenGLFunctions();
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+//    initializeOpenGLFunctions();
+//    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    QOpenGLShader *vShader = new QOpenGLShader(QOpenGLShader::Vertex,  &program);
-    const char *vsrc = \
-        "#ifdef GL_ES\n"
-        "precision highp int;\n"
-        "precision highp float;\n"
-        "#endif\n"
-        "uniform mat4 u_model;\n"
-        "uniform mat4 u_view;\n"
-        "uniform mat4 u_projection;\n"
-        "attribute  vec4 a_Position[5];\n"
-        "attribute  vec2 a_texCoord[5];\n"
-        "varying    vec2 v_texCoord[5];\n"
-        "varying    vec3 v_fragPos [5];\n"
-        "void main()\n"
-        "{\n"
-            "int num;\n"
-            "for (num = 0; num < 5; num += 1) {\n"
-                v_texCoord =
-    }
-            "v_fragPos   = vec3(u_model * a_Position);"
-            "v_texCoord  = a_texCoord;\n"
-            "gl_Position = u_projection * u_view * u_model * a_Position[1];\n"
-        "}\n";
-    vShader->compileSourceCode(vsrc);
-
-    QOpenGLShader *fShader = new QOpenGLShader(QOpenGLShader::Fragment, &program);
-    const char *fsrc =
-        "#ifdef GL_ES\n"
-        "precision mediump int;\n"
-        "precision mediump float;\n"
-        "#endif\n"
-        "uniform  highp vec3 color_value[256];\n"
-        "varying  highp vec2      v_texCoord[5];\n"
-        "uniform  highp sampler2D s_texture[5];\n"
-        "uniform  float cut;"
-        "varying  vec3  v_fragPos[5];\n"
-        "void main(void)\n"
-        "{\n"
-            "float index;\n"
-            "vec3 color;\n"
-            "vec4 texture[5] =  texture2D(s_texture, v_texCoord) ;\n"
-//            "index = texture.x * 255.0;\n"
-//            "int t = int(index);\n"
-//            "if (-cut < v_fragPos.x && v_fragPos.x < cut) {\n"
-//                "color = color_value[t] / 255.0;\n"
-//            "}else{\n"
-//                "color = vec3(0, 0, 0);\n"
-//            "}\n"
-//            "gl_FragColor = vec4(color, 1.0);\n"
-            "gl_FragColor = texture;\n"
-        "}\n";
-
-    fShader->compileSourceCode(fsrc);
-
-    program.addShader(vShader);
-    program.addShader(fShader);
+    program.addShaderFromSourceFile (QOpenGLShader::Vertex,   ":/glsl/shaderv.glsl");
+    program.addShaderFromSourceFile (QOpenGLShader::Fragment, ":/glsl/shaderf.glsl");
     program.link();
 
     program.bindAttributeLocation("a_Position", 0);
     program.bindAttributeLocation("a_texCoord", 1);
-    program.bindAttributeLocation("a_Color",    2);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+    program.bind ();
 
 }
 
@@ -573,34 +458,33 @@ void RenderB::initData()
     //FIXME 1 投影矩阵 左右值取-1, 1，不要让图像被缩放
     mProjectionMatrix.setToIdentity();
     mProjectionMatrix.frustum(-1.0, 1.0, bottom, top, n, f);
+
+    m_scan.mData.texture = getTextures ();
 }
 
 void RenderB::drawDSC()
 {
-    mModelMatrixHandle	= program.uniformLocation("u_model");
-    mViewMatrixHandle	= program.uniformLocation("u_view");
-    mProjectionMatrixHandle = program.uniformLocation("u_projection");
+    program.enableAttributeArray(mTexCoordHandle);
+    program.setAttributeArray(mTexCoordHandle,  mTexcoordsB.constData());
 
-    mPositionHandle  = program.attributeLocation("a_Position");
-    mTexCoordHandle	 = program.attributeLocation("a_texCoord");
-    mColorArrayhandle = program.uniformLocation("color_value");
+    mMVPMatrix = mProjectionMatrix * mViewMatrix * mModelMatrix;
 
+    program.setUniformValue (mMVPMatrixHandle, mMVPMatrix);
+    program.setUniformValueArray (mColorArrayhandle, colorsMapB.constData (), colorsMapB.size ());
 
-    program.setUniformValue("s_texture", 0);
-//    program.enableAttributeArray(mPositionHandle);
-//    program.setAttributeArray(mPositionHandle, vertices.constData());
-//    program.enableAttributeArray(mTexCoordHandle);
-//    program.setAttributeArray(mTexCoordHandle, vercoords.constData());
+    program.setUniformValue ("grayReverse", static_cast<GLint>(m_img_trans.grayReverse));
 
-//    program.setUniformValue(mModelMatrixHandle, mModelMatrix);
-//    program.setUniformValue(mViewMatrixHandle, mViewMatrix);
-//    program.setUniformValue(mProjectionMatrixHandle, mProjectionMatrix);
+    m_mutex.lock ();
+    m_scan.mData.texture->setData (QOpenGLTexture::Luminance, QOpenGLTexture::UInt8, mByteArrayData.data ());
+    m_mutex.unlock ();
 
-//    program.setUniformValue("s_texture", 0);
+    int texHandle = program.uniformLocation ("s_texture");
+    program.setUniformValue (texHandle, 0);
 
-//    program.setUniformValueArray(mColorArrayhandle,  colorsMapB.constData(), 256);
+    program.enableAttributeArray(mPositionHandle);
+    program.setAttributeArray (mPositionHandle, mVerticesB.constData ());
 
-//    glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
+    glDrawArrays (GL_TRIANGLE_FAN, 0, mVerticesB.size ());
 
     program.disableAttributeArray(mPositionHandle);
     program.disableAttributeArray(mTexCoordHandle);
@@ -618,74 +502,20 @@ void RenderB::setScan (QDomNode root)
         m_scan.depth = value;
         createGeometry ();
     }
-
-    node = root.firstChildElement ("complex");
-    if (!node.isNull ()) {
-        int len = node.toElement ().attribute ("len", "0").toInt ();
-
-        for (int i = 0; i < len; i++){
-            QDomNode L = node.toElement ().firstChildElement (QString("L%1").arg (i + 1));
-            QDomNode R = node.toElement ().firstChildElement (QString("R%1").arg (i + 1));
-            QDomNode M = node.toElement ().firstChildElement (QString("M%1").arg (i + 1));
-
-            if (L.isNull () || R.isNull ()) continue;
-
-            m_scan.complex[i].opengl_data_l.angle = L.toElement ().attribute ("angle").toFloat ();
-            m_scan.complex[i].opengl_data_r.angle = R.toElement ().attribute ("angle").toFloat ();
-            m_scan.complex[i].opengl_data_m.angle = M.toElement ().attribute ("angle").toFloat ();
-
-            m_scan.complex[i].opengl_data_l.flag = L.toElement ().attribute ("flag").toInt ();
-            m_scan.complex[i].opengl_data_r.flag = R.toElement ().attribute ("flag").toInt ();
-            m_scan.complex[i].opengl_data_m.flag = M.toElement ().attribute ("flag").toInt ();
-
-            m_scan.complex[i].opengl_data_l.texture = getTextures ();
-            m_scan.complex[i].opengl_data_r.texture = getTextures ();
-            m_scan.complex[i].opengl_data_m.texture = getTextures ();
-
-
-            m_scan.complex[i].opengl_data_r.vertices.clear ();
-            m_scan.complex[i].opengl_data_m.vertices.clear ();
-            m_scan.complex[i].opengl_data_l.vertices.clear ();
-
-            m_scan.complex[i].opengl_data_r.vercoords.clear ();
-            m_scan.complex[i].opengl_data_l.vercoords.clear ();
-            m_scan.complex[i].opengl_data_m.vercoords.clear ();
-        }
-    }
 }
 
 void RenderB::addData (int, unsigned char *data, int size)
 {
-    mData.resize (size);
-    memcpy( mData.data (), data, sizeof(unsigned char) * (size_t)size);
+
+//    m_mutex.lock ();
+    mByteArrayData.resize (size);
+    memcpy( mByteArrayData.data (), data, \
+            static_cast<size_t>(sizeof(unsigned char) * static_cast<unsigned long>(size)));
+//    m_mutex.unlock ();
 }
 
-class RenderThread;
-class RenderItem : public QQuickItem
-{
-    Q_OBJECT
 
-public:
-    RenderItem(QDomNode, QQuickItem *parent = 0);
-
-    static QList<QThread *> threads;
-
-public Q_SLOTS:
-    void ready();
-
-protected:
-    QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
-
-private:
-    RenderThread *m_renderThread;
-
-Q_SIGNALS:
-    void setMap   ( int, unsigned char *, int );
-    void addData  ( int, unsigned char *, int );
-    void setScan  (QDomNode);
-};
-
-QList<QThread *> RenderItem::threads;
+QList<RenderThread *> RenderItem::threads;
 
 class RenderThread : public QThread
 {
@@ -712,23 +542,27 @@ radius="1.0" Angle="150.4"/>
 
         QDomNode node;
 
+        m_render = 0;
+        /* etc.. <mode value = "B" />*/
         node = root.firstChildElement (QString("mode"));
         if (node.isNull ()) {
             qWarning() << __FILE__ << __FUNCTION__ << "mode not found";
             return;
         }
-
         m_mode_string = node.toElement().attribute("value");
 
+        /* etc.. <size width = "768 height = "512" */
         node = root.firstChildElement (QString("size"));
         if (node.isNull ()) {
             qWarning() << __FILE__ << __FUNCTION__ << "size not found";
             return;
         }
-        m_size.setWidth  (node.toElement ().attribute ("width", "768").toInt ());
-        m_size.setHeight (node.toElement ().attribute ("height", "512").toInt ());
+        if (node.isElement ()) {
+            m_size.setWidth  (node.toElement ().attribute ("width",  "768").toInt ());
+            m_size.setHeight (node.toElement ().attribute ("height", "512").toInt ());
+        }
 
-        m_root_config = root.cloneNode (true);
+        m_root_config = root;
 
         RenderItem::threads << this;
     }
@@ -750,16 +584,7 @@ public slots:
 
             if (m_mode_string == "B") {
                 m_render = new RenderB(m_size);
-
-                QDomNode node;
-
-                node = m_root_config.firstChildElement ("probe");
-                m_render->setGeoProbe (node);
-
-                node = m_root_config.firstChildElement ("scan");
-                m_render->setScan (node);
-
-
+                initParams();
             }
 
             m_render->initialize();
@@ -775,7 +600,7 @@ public slots:
         m_renderFbo->bindDefault();
         qSwap(m_renderFbo, m_displayFbo);
 
-        emit textureReady((int)m_displayFbo->texture(), m_size);
+        emit textureReady(static_cast<int>(m_displayFbo->texture()), m_size);
     }
 
     void shutDown()
@@ -796,16 +621,48 @@ public slots:
     }
 
     void setMap   ( int id, unsigned char *map, int size ){
-        m_render->setMap (id, map, size);
+        if (m_render) m_render->setMap (id, map, size);
 
     }
 
     void addData  ( int id, unsigned char *buf, int size){
-        m_render->addData (id, buf, size);
+        if (m_render) m_render->addData (id, buf, size);
     }
 
     void setScan  ( QDomNode node){
-        m_render->setScan (node);
+        if (m_render) m_render->setScan (node);
+    }
+
+    void setParams( QDomNode node) {
+        if (node.isElement ()) {
+            if (m_render) {
+                if (node.isElement () && node.toElement ().tagName () == "resource") {
+                    m_render->loadResure (node);
+                }else if (node.isElement () && node.toElement ().tagName () == "probe") {
+                    m_render->setGeoProbe (node);
+                }else if (node.isElement () && node.toElement ().tagName () == "scan") {
+                    m_render->setScan(node);
+                }
+            }else {
+                QString name = node.toElement ().tagName ();
+
+                QDomNode target = m_root_config.firstChildElement (name);
+                if (!target.isNull ()) {
+                    QDomNode parent = target.parentNode ();
+
+                    parent.replaceChild (node.cloneNode (), target);
+                }
+            }
+        }
+    }
+
+    void initParams() {
+        QDomNode node = m_root_config.firstChildElement ();
+
+        while (!node.isNull ()) {
+            setParams(node);
+            node = node.nextSiblingElement ();
+        }
     }
 
 signals:
@@ -899,11 +756,12 @@ private:
         <render>
     </RenderItem>
 */
+
+QTimer *timer1;
 RenderItem::RenderItem(QDomNode root, QQuickItem *parent)
     : QQuickItem(parent)
     , m_renderThread(0)
 {
-    setSize (parent->boundingRect ().toRect ().size ());
     setFlag(ItemHasContents, true);
 
     if (root.toElement ().tagName () != QString("RenderItem")) {
@@ -911,10 +769,62 @@ RenderItem::RenderItem(QDomNode root, QQuickItem *parent)
         return;
     }
 
-    QDomNode node = root.toElement ().firstChildElement ("render");
+    int width = root.toElement ().attribute ("width").toInt ();
+    int height= root.toElement ().attribute ("height").toInt ();
+
+    setSize(QSize(width,height));
+
+    QDomNode d = m_config_document.createElement ("replace");
+    d = root.cloneNode ();
+    m_config_document.appendChild (d);
+
+    QDomNode node = m_config_document.documentElement ().firstChildElement ("render");
 
     m_renderThread = new RenderThread(node);
 
+    QTimer *timer = new QTimer(this);
+    connect(timer, SIGNAL(timeout()), this, SLOT(addD ()));
+
+    timer->start (1);
+
+    timer1 = new QTimer(this);
+    connect(timer1, SIGNAL(timeout()), this, SLOT(sss ()));
+
+    timer1->start (5000);
+}
+
+RenderItem::~RenderItem()
+{
+
+}
+
+unsigned char gbuf[768*512];
+
+void RenderItem::sss()
+{
+//        timer1->stop ();
+//        this->stopRenderThread ();
+}
+
+void RenderItem::addD ()
+{
+    static int tmp = 0;
+    for (int  i = 0; i < 768*512; i++) {
+        gbuf[i] = tmp;
+    }
+
+    tmp = (tmp+1) % 255;
+    addData (0, (unsigned char *)gbuf,  768*512);
+}
+
+void RenderItem::startRenderThread ()
+{
+
+}
+
+void RenderItem::stopRenderThread ()
+{
+    connect(window(), &QQuickWindow::afterRendering, m_renderThread, &RenderThread::shutDown, Qt::DirectConnection);
 }
 
 void RenderItem::ready()
@@ -927,9 +837,8 @@ void RenderItem::ready()
 
     connect(window(), &QQuickWindow::sceneGraphInvalidated, m_renderThread, &RenderThread::shutDown, Qt::QueuedConnection);
 
-    connect(this, SIGNAL(setMap(int, unsigned char *, int)), m_renderThread, SLOT(setMap (int, unsigned char *, int)));
     connect(this, SIGNAL(addData(int, unsigned char *, int)),m_renderThread, SLOT(addData(int, unsigned char *, int)));
-    connect(this, SIGNAL(setScan(QDomNode)),                 m_renderThread, SLOT(setScan(QDomNode)));
+    connect(this, SIGNAL(setParams(QDomNode)),               m_renderThread, SLOT(setParams(QDomNode)));
 
     m_renderThread->start();
     update();
@@ -937,6 +846,7 @@ void RenderItem::ready()
 
 QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
+    qDebug() << __FUNCTION__;
     TextureNode *node = static_cast<TextureNode *>(oldNode);
 
     if (!m_renderThread->context) {
@@ -970,188 +880,6 @@ QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     node->setRect(boundingRect());
 
     return node;
-}
-
-
-
-#define CHECK_DIVISOR(var) do { \
-	if ((var) == 0) { \
-	qDebug() << __FILE__<<__LINE__<< "if you want to div 0, it's a thrilling thing."; \
-	} \
-	}while(0);
-
-VirtualBox::VirtualBox(int id \
-                     , Ultrasound *device \
-                     , QDomDocument     *deviceXml \
-                     , QDomDocument     *probeXml \
-                     , const QDomDocument     &softXml   \
-                     , const QDomDocument     &configXml \
-                     , QQuickItem *gui)
-{
-    Q_UNUSED (device);
-
-    m_id = id;
-
-	/*member variables assignment*/
-	m_device_xml = deviceXml;
-	m_probe_xml  = probeXml;
-	m_soft_xml   = softXml.cloneNode().toDocument();
-	m_config_xml = configXml.cloneNode().toDocument();
-	m_gui_parent = gui;
-
-	/*engine init*/
-	m_engine = new QScriptEngine;
-
-	m_ultrasound        = 0;
-
-    QSize size(512, 512);
-    m_render_ui = new RenderItem(m_config_xml.documentElement (), m_gui_parent);
-}
-
-
-VirtualBox::~VirtualBox (){
-
-}
-
-QScriptValue VirtualBox::callerFunction(QString function)
-{
-	QScriptValue ret;
-	QScriptValue caller = m_engine->globalObject().property(function);
-
-	if (!caller.isValid()) {
-		return caller;
-	}else {
-		ret = caller.call(QScriptValue());
-	}
-	return ret;
-}
-
-QScriptValue VirtualBox::callerFpgaFunction(QString var, QString value)
-{
-	m_fpga_control->setObjectValueFName(var, value);
-	m_ultrasound->updateCtrlTable(true);
-
-	return QScriptValue();
-}
-
-QScriptValue VirtualBox::callerSoftFunction(QString var, QString value)
-{
-	m_soft_control->setObjectValueFName(var, value);
-	return QScriptValue();
-}
-
-void VirtualBox::functionLoader()
-{
-    /*add instance function */
-    if (m_engine->hasUncaughtException ()){
-        qWarning() << "Error:" << __FILE__ << __LINE__ << "StatusBar " << m_engine->uncaughtExceptionLineNumber () << " " << m_engine->uncaughtException ().toString ();
-    }
-
-}
-
-void VirtualBox::jsLoader()
-{
-
-
-}
-
-QScriptEngine *VirtualBox::engine()
-{
-	return m_engine;
-}
-
-int   VirtualBox::dscrecth () const
-{
-    return m_dsc_image_h;
-}
-
-int VirtualBox::dscrectw () const
-{
-    return m_dsc_image_w;
-}
-
-int VirtualBox::dscrectx () const
-{
-    return m_dsc_image_x;
-}
-
-int VirtualBox::dscrecty () const
-{
-    return m_dsc_image_y;
-}
-
-QRect VirtualBox::dscRect() const
-{
-    return QRect(m_dsc_image_x, m_dsc_image_y, \
-                 m_dsc_image_w, m_dsc_image_h);
-}
-
-void VirtualBox::setdscRect (QRect rect)
-{
-    if (rect == dscRect()) {
-        return;
-    }
-
-    m_dsc_image_x = rect.x ();
-    m_dsc_image_y = rect.y ();
-    m_dsc_image_w = rect.width ();
-    m_dsc_image_h = rect.height ();
-
-    emit dscRectChanged ();
-}
-
-int VirtualBox::expectW() const
-{
-	return m_expect_dsc_w;
-}
-int VirtualBox::expectH() const
-{
-	return m_expect_dsc_h;
-}
-int VirtualBox::expectX() const
-{
-    return m_expect_dsc_x;
-}
-int VirtualBox::expectY() const
-{
-    return m_expect_dsc_y;
-}
-
-void VirtualBox::setExpectSize(int w, int h)
-{
-	m_expect_dsc_w = w;
-	m_expect_dsc_h = h;
-}
-
-void VirtualBox::setExpectPos(int x, int y)
-{
-    m_expect_dsc_x = x;
-    m_expect_dsc_y = y;
-}
-
-int VirtualBox::echoX () const
-{
-   return m_echo_x;
-}
-
-int VirtualBox::echoY () const
-{
-    return m_echo_y;
-}
-
-int VirtualBox::echoW () const
-{
-    return m_echo_w;
-}
-
-int VirtualBox::echoH () const
-{
-    return m_echo_h;
-}
-
-int VirtualBox::id ()  const
-{
-    return m_id;
 }
 
 #include "virtual_box.moc"

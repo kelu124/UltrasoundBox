@@ -16,9 +16,47 @@
 #include <QObject>
 #include <QString>
 
-#include "device_ultrasound.h"
+#include <QTimer>
 
-class RenderItem;
+#include "ultrasound.h"
+//#include "device_ultrasound.h"
+
+
+class RenderThread;
+class RenderItem : public QQuickItem
+{
+    Q_OBJECT
+
+public:
+    RenderItem(QDomNode, QQuickItem *parent = 0);
+
+    static QList<RenderThread *> threads;
+
+    ~RenderItem();
+
+    void startRenderThread();
+    void stopRenderThread ();
+public Q_SLOTS:
+    void ready();
+
+protected:
+    QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
+
+private:
+    RenderThread *m_renderThread;
+
+    QDomDocument m_config_document;
+Q_SIGNALS:
+    void cc();
+    void addData  ( int, unsigned char *, int );
+    void setParams( QDomNode);
+    void stop();
+public Q_SLOTS:
+    void addD();
+    void sss();
+};
+
+#if 0
 class VirtualBox:public QObject
 {
 	Q_OBJECT
@@ -28,28 +66,17 @@ class VirtualBox:public QObject
     Q_PROPERTY(int     dscrecty    READ dscrecty )
     Q_PROPERTY(int     dscrectw    READ dscrectw )
     Q_PROPERTY(int     dscrecth    READ dscrecth )
-
-	//预想的图像大小. dscUpdate之前，dscRect是无效的，所以这里用expecrtW expectH来表示预想的图像大小
-	Q_PROPERTY(int expectW READ expectW)
-	Q_PROPERTY(int expectH READ expectH)
-    Q_PROPERTY(int expectX READ expectX)
-    Q_PROPERTY(int expectY READ expectY)
 	/*real scan image, dscer's set*/
-
-	Q_PROPERTY(int     echoW    READ echoW)
-	Q_PROPERTY(int     echoH    READ echoH)
-    Q_PROPERTY(int     echoX    READ echoX)
-    Q_PROPERTY(int     echoY    READ echoY)
 
     Q_PROPERTY(int     id       READ id)
 public:
 
     VirtualBox(int id
-             , Ultrasound       *device   \
-             , QDomDocument     *deviceXml \
-             , QDomDocument     *probeXml \
-             , const QDomDocument     &softXml  \
-             , const QDomDocument     &configXml \
+             , QDomDocument &machineXml \
+             , QDomDocument &deviceXml  \
+             , QDomDocument &probeXml   \
+             , QDomDocument &softXml    \
+             , QDomDocument &configXml  \
              , QQuickItem *gui);
 
 	~VirtualBox();
@@ -70,11 +97,6 @@ public:
 	void setExpectSize(int w, int h);
     void setExpectPos(int x, int  y);
 
-    int echoX() const;
-    int echoY() const;
-    int echoW() const;
-    int echoH() const;
-
 	QScriptValue callerFunction(QString caller);
     QScriptValue callerFpgaFunction(QString var, QString value);
     QScriptValue callerSoftFunction(QString var, QString value);
@@ -86,21 +108,18 @@ private:
 	void functionLoader();
 	void functionUnLoader();
 
+
     RenderItem     *m_render_ui;
 
 	QScriptEngine  *m_engine;
 
-	FpgaControl    *m_fpga_control;
-	SoftControl    *m_soft_control;
-
     Ultrasound       *m_ultrasound;
 
-	QDomDocument    m_config_xml;
-	QDomDocument    m_memory_xml;
-	QDomDocument    m_soft_xml;
+    QDomDocument     m_machine_xml;
+    QDomDocument     m_config_xml;
+    QDomDocument     m_probe_xml;
 
-	QDomDocument    *m_probe_xml;
-	QDomDocument    *m_device_xml;
+    QDomDocument     m_memory_xml;
 
 	/*Show Image*/
 	QQuickItem     *m_gui_parent;
@@ -108,9 +127,6 @@ private:
 	QString         m_type;
 
 	/*control object*/
-
-    int   m_echo_w, m_echo_h;
-    int   m_echo_x, m_echo_y;
 
     int	  m_expect_dsc_w, m_expect_dsc_h;
     int   m_expect_dsc_x, m_expect_dsc_y;
@@ -123,5 +139,5 @@ private:
 Q_SIGNALS:
     void dscRectChanged();
 };
-
+#endif
 #endif // VIRTUALBOX_H
