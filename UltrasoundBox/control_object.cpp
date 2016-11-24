@@ -1,3 +1,4 @@
+
 #if 0
 #include "control_object.h"
 
@@ -159,3 +160,4 @@ int Control::objectValue(QString name)
 }
 
 #endif
+

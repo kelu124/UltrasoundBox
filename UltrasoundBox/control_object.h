@@ -5,7 +5,11 @@
 #include <QDomNode>
 #include <QString>
 #include <QScriptEngine>
+<<<<<<< HEAD
 #if 0
+=======
+
+>>>>>>> master
 class ControlObject : public QObject
 {
     Q_OBJECT
@@ -57,5 +61,8 @@ private:
 
     QDomDocument                       *m_doc;
 };
+<<<<<<< HEAD
 #endif
+=======
+>>>>>>> master
 #endif // CONTROLOBJECT_H

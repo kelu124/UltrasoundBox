@@ -86,4 +86,5 @@ void UltrasoundMemory64::release ()
 {
 
 }
+
 #endif

@@ -136,9 +136,15 @@ public:
 
 	virtual  int          updateCtrlTable(bool) { return -1; }
     virtual  int          updateSoftTable(bool) { return -1; }
+<<<<<<< HEAD
 
 	virtual  QList <int>  updateProbesInfo(){ QList <int> list; return list;}
 
+=======
+
+	virtual  QList <int>  updateProbesInfo(){ QList <int> list; return list;}
+
+>>>>>>> master
 
 protected:
 
@@ -226,7 +232,13 @@ public:
 
 	QList<int>   updateProbesInfo();
 
+    void
 private:
+<<<<<<< HEAD
+=======
+
+};
+>>>>>>> master
 
 };
 #endif

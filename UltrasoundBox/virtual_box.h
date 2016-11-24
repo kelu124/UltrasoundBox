@@ -17,6 +17,8 @@
 #include <QString>
 
 #include <QTimer>
+#include "ultrasound.h"
+//#include "device_ultrasound.h"
 
 #include "ultrasound.h"
 //#include "device_ultrasound.h"

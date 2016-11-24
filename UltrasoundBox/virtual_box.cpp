@@ -882,4 +882,5 @@ QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     return node;
 }
 
+
 #include "virtual_box.moc"
