@@ -6,6 +6,8 @@
 #include <QString>
 #include <QScriptEngine>
 
+#if 0
+
 class ControlObject : public QObject
 {
     Q_OBJECT
@@ -57,4 +59,7 @@ private:
 
     QDomDocument                       *m_doc;
 };
+
+#endif
+
 #endif // CONTROLOBJECT_H

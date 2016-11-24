@@ -6,6 +6,8 @@
 #include <QScriptEngine>
 #include <QThread>
 
+#if 0
+
 #include "control_object.h"
 #include "queue.h"
 
@@ -169,5 +171,7 @@ public:
     void  release();
 
 };
+
+#endif
 
 #endif // ULTRASOUND_H

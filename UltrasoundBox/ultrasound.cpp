@@ -1,5 +1,7 @@
 #include "ultrasound.h"
 
+#if 0
+
 /*
     <root>
         <type>
@@ -85,3 +87,5 @@ void UltrasoundMemory64::release ()
 {
 
 }
+
+#endif

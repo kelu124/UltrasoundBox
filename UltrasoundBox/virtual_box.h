@@ -16,10 +16,50 @@
 #include <QObject>
 #include <QString>
 
+#include <QTimer>
+
 #include "ultrasound.h"
 //#include "device_ultrasound.h"
 
-class RenderItem;
+#include "ultrasound.h"
+//#include "device_ultrasound.h"
+
+
+class RenderThread;
+class RenderItem : public QQuickItem
+{
+    Q_OBJECT
+
+public:
+    RenderItem(QDomNode, QQuickItem *parent = 0);
+
+    static QList<RenderThread *> threads;
+
+    ~RenderItem();
+
+    void startRenderThread();
+    void stopRenderThread ();
+public Q_SLOTS:
+    void ready();
+
+protected:
+    QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
+
+private:
+    RenderThread *m_renderThread;
+
+    QDomDocument m_config_document;
+Q_SIGNALS:
+    void cc();
+    void addData  ( int, unsigned char *, int );
+    void setParams( QDomNode);
+    void stop();
+public Q_SLOTS:
+    void addD();
+    void sss();
+};
+
+#if 0
 class VirtualBox:public QObject
 {
 	Q_OBJECT
@@ -102,5 +142,5 @@ private:
 Q_SIGNALS:
     void dscRectChanged();
 };
-
+#endif
 #endif // VIRTUALBOX_H

@@ -2,5 +2,7 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>MainForm.ui.qml</file>
+        <file>glsl/shaderf.glsl</file>
+        <file>glsl/shaderv.glsl</file>
     </qresource>
 </RCC>

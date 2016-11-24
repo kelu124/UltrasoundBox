@@ -5,7 +5,7 @@
 #include <QQuickItem>
 
 #include <QDebug>
-
+#include <QThread>
 
 #include "device_ultrasound.h"
 #include "virtual_box.h"
@@ -26,32 +26,50 @@ int main(int argc, char *argv[])
     viewer.setTitle("Ultrasound Box");
     viewer.setFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowSystemMenuHint | Qt::WindowTitleHint |
         Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint/* | Qt::Popup*/);
-    viewer.setMinimumSize(QSize(1024, 768));
-    viewer.setColor(QColor(0, 0, 0, 0));
+//    viewer.setMinimumSize(QSize(1024, 768));
+    viewer.showFullScreen ();
+    viewer.setColor(QColor(255, 255, 255, 0));
 
     QQuickItem *item = viewer.rootObject ();
     QDomDocument soft, config;
 
-    QDomElement root = config.createElement ("RenderItem");
-    config.appendChild (root);
+
     /*
         <render>
-            <mode  value="B">
-                <B x= "-1" y = "-1" w = "2" h = "2"/>
-            </mode>
-            <probe name="R10" icon="res/R10.png" hard="16" soft="3" type="Convex" element="128" interval="1.175"
-radius="1.0" Angle="150.4"/>
-            <size width=768 height=512/>
+<RenderItem height="512" width="768">
+    <size height=\"512\" width=\"768\"/>
+    <render>
+         <mode value=\"B\">
+              <B w=\"1\" x=\"0\" y=\"0\" h=\"1\"/>
+         </mode>  <size height=\"512\" width=\"768\"/>
 
-            <depth value="10.0"/>
-        </render>
+         <probe name=\"R10\" radius=\"6.0\" icon=\"R10.png\" element=\"128\" hard=\"16\" soft=\"3\" angle=\" 59.4\" type=\"Convex\"/>
+         <scan>
+            <depth value=\"9.0\"/>
+            <complex len=\"1\">
+                <L1 angle=\"-15\" flag=\"1\"/>
+                <R1 angle=\"15\" flag=\"2\"/>
+                <M1 angle=\"0\" flag=\"0\"/>
+            </complex>
+         </scan>
+
+        <resource>
+              <b value=\"resource/greymap.dat\"/>
+        </resource>
+     </render>
+</RenderItem>
 
     */
+
+    qDebug() << item->width () << item->height () << item->objectName ();
+    QDomElement root = config.createElement ("RenderItem");
+    root.setAttribute ("width", "768");
+    root.setAttribute ("height", "512");
+    config.appendChild (root);
 
     QDomElement render = config.createElement ("render");
     QDomElement mode   = config.createElement ("mode");
     mode.setAttribute ("value", "B");
-    render.appendChild (mode);
 
     QDomElement B = config.createElement ("B");
     B.setAttribute ("x", "0");
@@ -96,24 +114,23 @@ radius="1.0" Angle="150.4"/>
 
     scan.appendChild (complex);
 
+    QDomElement resource = config.createElement ("resource");
+    QDomElement b = config.createElement ("b");
+    b.setAttribute ("value", "resource/greymap.dat");
+    resource.appendChild (b);
+
     render.appendChild (mode);
     render.appendChild (size);
     render.appendChild (probe);
     render.appendChild (scan);
+    render.appendChild (resource);
 
     root.appendChild (render);
 
-    Ultrasound *device = new Ultrasound(QString("device"));
-    VirtualBox( 0
-             , device   \
-             , 0 \
-             , 0 \
-             , soft  \
-             , config \
-             , item);
+    qDebug() << config.toString ();
 
-    viewer.show();
+    RenderItem tem(root, item);
 
 
-    return app.exec();
+    return app.exec ();
 }

@@ -1,3 +1,4 @@
+#if 0
 #include "control_object.h"
 
 #include <QDebug>
@@ -156,3 +157,5 @@ int Control::objectValue(QString name)
 
     return ret;
 }
+
+#endif

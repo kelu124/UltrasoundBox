@@ -1,5 +1,4 @@
-﻿
-#ifndef ULTRASOUND_H
+﻿#ifndef ULTRASOUND_H
 #define ULTRASOUND_H
 
 #include <QHash>
@@ -15,7 +14,7 @@
 #include <QScriptEngine>
 
 #include <QDebug>
-
+#if 0
 class Ultrasound;
 
 class FpgaControlObject:public QObject
@@ -138,9 +137,6 @@ public:
 	virtual  int          updateCtrlTable(bool) { return -1; }
     virtual  int          updateSoftTable(bool) { return -1; }
 
-	virtual  QList <int>  updateProbesInfo(){ QList <int> list; return list;}
-
-
 protected:
 
     QDomDocument     m_machine;
@@ -231,5 +227,5 @@ public:
 private:
 
 };
-
+#endif
 #endif

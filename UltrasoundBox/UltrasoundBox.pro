@@ -25,3 +25,9 @@ HEADERS += \
     ultrasound.h \
     queue.h \
     eplugins_manager.h
+
+
+DISTFILES += \
+    glsl/vertex.v \
+    glsl/shaderv.glsl \
+    glsl/shaderf.glsl
