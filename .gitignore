@@ -1,5 +1,6 @@
 build_Debug
 build_Release
+build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug
 *.user
 
 *makefile*
@@ -29,4 +30,6 @@ build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/virtual_box.moc
 
 build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/moc_ultrasound.cpp
 
+
 build-UltrasoundBox-Desktop_Qt_5_7_0_clang_64bit-Debug/UltrasoundBox.app/Contents/Resources/empty.lproj
+

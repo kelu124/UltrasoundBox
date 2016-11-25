@@ -8,7 +8,10 @@ SOURCES += main.cpp \
     device_ultrasound.cpp \
     control_object.cpp \
     ultrasound.cpp \
-    eplugins_manager.cpp
+    eplugins_manager.cpp \
+    render_base.cpp \
+    render_b.cpp \
+    render_item.cpp
 
 RESOURCES += qml.qrc
 
@@ -24,7 +27,10 @@ HEADERS += \
     control_object.h \
     ultrasound.h \
     queue.h \
-    eplugins_manager.h
+    eplugins_manager.h \
+    render_base.h \
+    render_b.h \
+    render_item.h
 
 
 DISTFILES += \

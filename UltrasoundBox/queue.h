@@ -339,5 +339,4 @@ public:
 
 };
 
-
 #endif // QUEUE_H

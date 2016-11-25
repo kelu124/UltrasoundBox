@@ -17,7 +17,7 @@
 #include <QString>
 
 #include <QTimer>
-
+#if 0
 #include "ultrasound.h"
 //#include "device_ultrasound.h"
 
@@ -39,6 +39,7 @@ public:
 
     void startRenderThread();
     void stopRenderThread ();
+
 public Q_SLOTS:
     void ready();
 
@@ -142,5 +143,6 @@ private:
 Q_SIGNALS:
     void dscRectChanged();
 };
+#endif
 #endif
 #endif // VIRTUALBOX_H

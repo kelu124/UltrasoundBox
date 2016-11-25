@@ -8,7 +8,7 @@
 #include <QThread>
 
 #include "device_ultrasound.h"
-#include "virtual_box.h"
+#include "render_item.h"
 
 int main(int argc, char *argv[])
 {
@@ -37,7 +37,6 @@ int main(int argc, char *argv[])
     /*
         <render>
 <RenderItem height="512" width="768">
-    <size height=\"512\" width=\"768\"/>
     <render>
          <mode value=\"B\">
               <B w=\"1\" x=\"0\" y=\"0\" h=\"1\"/>
