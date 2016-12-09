@@ -9,7 +9,6 @@
 #include <time.h>
 //#define T unsigned short
 
-
 typedef struct _TagComplexIQ
 {
     short I;

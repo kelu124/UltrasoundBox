@@ -1,0 +1,131 @@
+﻿生成启动时间为 2016/6/1 15:25:05。
+     1>项目“D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\ZJDopplerModule\ZJDopplerModule.vcxproj”在节点 4 上(Rebuild 个目标)。
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /Z7 /nologo /W3 /WX- /MP /Ox /Oi /Oy- /GL /D _IPP_SEQUENTIAL_STATIC /D WIN32 /D NDEBUG /D _WINDOWS /D _USRDLL /D ZJDOPPLERMODULE_EXPORTS /D _WINDLL /D _MBCS /D _AFXDLL /Gm- /EHsc /MD /GS /Gy /arch:SSE2 /fp:fast /Zc:wchar_t /Zc:forScope /openmp /Yc"StdAfx.h" /Fp"Release\ZJDopplerModule.pch" /Fo"Release\\" /Fd"Release\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt stdafx.cpp
+         stdafx.cpp
+         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /Z7 /nologo /W3 /WX- /MP /Ox /Oi /Oy- /GL /D _IPP_SEQUENTIAL_STATIC /D WIN32 /D NDEBUG /D _WINDOWS /D _USRDLL /D ZJDOPPLERMODULE_EXPORTS /D _WINDLL /D _MBCS /D _AFXDLL /Gm- /EHsc /MD /GS /Gy /arch:SSE2 /fp:fast /Zc:wchar_t /Zc:forScope /openmp /Yu"StdAfx.h" /Fp"Release\ZJDopplerModule.pch" /Fo"Release\\" /Fd"Release\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt AudioProcess.cpp DopplerAudio.cpp GenDopplerProcess.cpp WallFilterFIR.cpp WaveOut.cpp WindowedSignal.cpp ZJDopplerModule.cpp
+         AudioProcess.cpp
+         DopplerAudio.cpp
+     1>AudioProcess.cpp(76): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>AudioProcess.cpp(77): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>AudioProcess.cpp(102): warning C4068: 未知的杂注
+     1>AudioProcess.cpp(124): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>AudioProcess.cpp(125): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>AudioProcess.cpp(173): warning C4068: 未知的杂注
+     1>AudioProcess.cpp(218): warning C4005: “AudioShift”: 宏重定义
+                 AudioProcess.cpp(101) : 参见“AudioShift”的前一个定义
+     1>AudioProcess.cpp(219): warning C4068: 未知的杂注
+     1>AudioProcess.cpp(234): warning C4244: “初始化”: 从“double”转换到“short”，可能丢失数据
+     1>AudioProcess.cpp(235): warning C4244: “初始化”: 从“double”转换到“short”，可能丢失数据
+     1>AudioProcess.cpp(265): warning C4068: 未知的杂注
+         GenDopplerProcess.cpp
+         WallFilterFIR.cpp
+     1>DopplerAudio.cpp(198): warning C4800: “long”: 将值强制为布尔值“true”或“false”(性能警告)
+         WaveOut.cpp
+     1>DopplerAudio.cpp(230): warning C4800: “long”: 将值强制为布尔值“true”或“false”(性能警告)
+     1>DopplerAudio.cpp(270): warning C4244: “参数”: 从“double”转换到“DWORD”，可能丢失数据
+     1>DopplerAudio.cpp(283): warning C4244: “=”: 从“double”转换到“unsigned int”，可能丢失数据
+         WindowedSignal.cpp
+         ZJDopplerModule.cpp
+     1>WaveOut.cpp(83): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(85): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(87): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(90): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(192): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(194): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(196): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(199): warning C4010: 单行注释包含行继续符
+     1>WaveOut.cpp(632): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(654): warning C4244: “初始化”: 从“double”转换到“float”，可能丢失数据
+     1>WaveOut.cpp(655): warning C4244: “初始化”: 从“float”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(723): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(725): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(726): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(791): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(797): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(800): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(825): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(919): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(921): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(922): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+     1>WaveOut.cpp(977): warning C4244: “=”: 从“double”转换到“unsigned int”，可能丢失数据
+     1>WaveOut.cpp(985): warning C4018: “>”: 有符号/无符号不匹配
+     1>WaveOut.cpp(989): warning C4244: “参数”: 从“double”转换到“DWORD”，可能丢失数据
+     1>WaveOut.cpp(1081): warning C4244: “=”: 从“double”转换到“BYTE”，可能丢失数据
+     1>WaveOut.cpp(1082): warning C4244: “=”: 从“double”转换到“BYTE”，可能丢失数据
+     1>WaveOut.cpp(1116): warning C4244: “=”: 从“double”转换到“BYTE”，可能丢失数据
+     1>WaveOut.cpp(1117): warning C4244: “=”: 从“double”转换到“BYTE”，可能丢失数据
+     1>WaveOut.cpp(1183): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>WaveOut.cpp(1184): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>WaveOut.cpp(1219): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>WaveOut.cpp(1220): warning C4244: “=”: 从“double”转换到“short”，可能丢失数据
+     1>d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(182): warning C4244: “=”: 从“__int64”转换到“int”，可能丢失数据
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(172): 编译类 模板 成员函数“unsigned short *CArrayQueue<T>::Get(int &)”时
+                 with
+                 [
+                     T=unsigned short
+                 ]
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\WaveOut.h(21): 参见对正在编译的类 模板 实例化“CArrayQueue<T>”的引用
+                 with
+                 [
+                     T=unsigned short
+                 ]
+     1>d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(182): warning C4244: “=”: 从“__int64”转换到“int”，可能丢失数据
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(172): 编译类 模板 成员函数“unsigned int *CArrayQueue<T>::Get(int &)”时
+                 with
+                 [
+                     T=unsigned int
+                 ]
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\WaveOut.h(22): 参见对正在编译的类 模板 实例化“CArrayQueue<T>”的引用
+                 with
+                 [
+                     T=unsigned int
+                 ]
+     1>GenDopplerProcess.cpp(99): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(193): warning C4552: “!=”: 运算符不起任何作用；应输入带副作用的运算符
+     1>GenDopplerProcess.cpp(523): warning C4244: “=”: 从“float”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(588): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+     1>GenDopplerProcess.cpp(890): warning C4068: 未知的杂注
+     1>GenDopplerProcess.cpp(905): warning C4068: 未知的杂注
+     1>GenDopplerProcess.cpp(970): warning C4244: “初始化”: 从“float”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(983): warning C4244: “初始化”: 从“float”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(1008): warning C4244: “=”: 从“float”转换到“unsigned char”，可能丢失数据
+     1>GenDopplerProcess.cpp(1107): warning C4068: 未知的杂注
+     1>GenDopplerProcess.cpp(1110): warning C4244: “=”: 从“double”转换到“unsigned short”，可能丢失数据
+     1>GenDopplerProcess.cpp(1133): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(1142): warning C4244: “初始化”: 从“double”转换到“int”，可能丢失数据
+     1>GenDopplerProcess.cpp(1184): warning C4068: 未知的杂注
+     1>d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(260): warning C4244: “=”: 从“__int64”转换到“int”，可能丢失数据
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\ArrayQueue.h(243): 编译类 模板 成员函数“CGenDopplerProcess::DLine *CArrayQueue<T>::GetFromPos(int,int &)”时
+                 with
+                 [
+                     T=CGenDopplerProcess::DLine
+                 ]
+                 d:\projects\afs-a8-full\zjultrasound-tp\zjdopplermodule\GenDopplerProcess.h(55): 参见对正在编译的类 模板 实例化“CArrayQueue<T>”的引用
+                 with
+                 [
+                     T=CGenDopplerProcess::DLine
+                 ]
+       ResourceCompile:
+         C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\bin\rc.exe /D _AFXDLL /l"0x0409" /nologo /fo"Release\ZJDopplerModule.res" ZJDopplerModule.rc 
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.dll" /INCREMENTAL:NO /NOLOGO /MANIFEST /ManifestFile:"Release\ZJDopplerModule.dll.intermediate.manifest" /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /PDB:"D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.pdb" /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.lib" /MACHINE:X86 /DLL Release\ZJDopplerModule.res
+         Release\AudioProcess.obj
+         Release\DopplerAudio.obj
+         Release\GenDopplerProcess.obj
+         Release\stdafx.obj
+         Release\WallFilterFIR.obj
+         Release\WaveOut.obj
+         Release\WindowedSignal.obj
+         Release\ZJDopplerModule.obj
+            正在创建库 D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.lib 和对象 D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.exp
+         正在生成代码
+         已完成代码的生成
+         ZJDopplerModule.vcxproj -> D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.dll
+       Manifest:
+         C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\bin\mt.exe /nologo /verbose /outputresource:"D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\Release\ZJDopplerModule.dll;#2" /manifest Release\ZJDopplerModule.dll.intermediate.manifest "C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\Include\Manifest\dpiaware.manifest"
+     1>已完成生成项目“D:\Projects\AFS-A8-FULL\ZJUltrasound-TP\ZJDopplerModule\ZJDopplerModule.vcxproj”(Rebuild 个目标)的操作。
+
+生成成功。
+
+已用时间 00:00:03.58

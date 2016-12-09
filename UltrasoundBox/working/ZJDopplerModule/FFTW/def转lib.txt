@@ -1,0 +1,2 @@
+F:\ultrasound\pw\TestFFTW\TestFFTW\FFTW> "C:\Program Files (x86)\Microsoft Visual
+ Studio 12.0\VC\bin\lib.exe" /machine:ix86 /def:libfftw3-3.def

@@ -28,10 +28,13 @@ public:
         m_render_base->initialize();
     }
 
+    ~RenderThread() {}
+
     void render() {
         m_render_base->paint ();
         update();
     }
+
 
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size){
         QOpenGLFramebufferObjectFormat format;
@@ -73,7 +76,6 @@ public:
             size = QSize(width, height);
         }
 
-        qDebug() << "debug: " << "mode = " << mode << "; size = " << size;
         if (mode == "B" || mode == "b") {
             m_render_base = new RenderB(size);
             return true;
@@ -119,7 +121,6 @@ public:
     }
 
     RenderBase                 *m_render_base;
-
     QDomDocument               m_root_config;
 
     QString                    m_mode_string;

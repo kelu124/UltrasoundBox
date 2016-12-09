@@ -1,13 +1,11 @@
-#if 0
 #include "control_object.h"
 
 #include <QDebug>
 
-ControlObject::ControlObject(QDomNode node, int value, int reset, QObject *parent) : QObject(parent)
+ControlObject::ControlObject(QDomNode node, int value, QObject *parent) : QObject(parent)
 {
     QString name = node.toElement().attribute("name");
     node.toElement().setAttribute("value", value);
-    node.toElement().setAttribute("reset", reset);
     setObjectName(name);
 }
 
@@ -24,15 +22,6 @@ void ControlObject::setValue(int value)
     m_node.toElement().setAttribute("value", value);
 
     emit valueChanged();
-
-    if (m_node.toElement().attribute("reset").toInt()) {
-        emit resetChanged();
-    }
-}
-
-int ControlObject::reset() const
-{
-    return m_node.toElement().attribute("reset").toInt();
 }
 
 QString ControlObject::name() const {
@@ -42,7 +31,6 @@ QString ControlObject::name() const {
 void ControlObject::updateNode (QDomNode node)
 {
     int value = node.toElement ().attribute ("value", "0").toInt ();
-//    int reset = node.toElement ().attribute ("reset", "0").toInt ();
 
     if (value != m_node.toElement ().attribute ("value", "0").toInt ()) {
         m_node = node;
@@ -67,9 +55,8 @@ Control::Control(QDomDocument *doc)
         if (node.isElement()) {
             QDomElement e = node.toElement();
             int value = e.attribute("value").toInt();
-            int reset = e.attribute ("reset").toInt ();
+            ControlObject *obj = new ControlObject(e, value);
 
-            ControlObject *obj = new ControlObject(e, value, reset);
             m_hash_controls.insert(obj->name (), obj);
         }
         node = node.nextSiblingElement();
@@ -118,12 +105,8 @@ void Control::updateData (QDomDocument *doc)
     while (!node.isNull()) {
         if (node.isElement()) {
             QDomElement e = node.toElement();
-//            int value = e.attribute("value").toInt();
-//            int reset = e.attribute ("reset").toInt ();
-
-            m_hash_controls[e.tagName ()]->updateNode (e);
-//            m_hash_controls[e.tagName ()]->setReset (reset);
-//            m_hash_controls[e.tagName ()]->setValue (value);
+            int value = e.attribute("value").toInt();
+            m_hash_controls[e.tagName ()]->setValue (value);
         }
         node = node.nextSiblingElement();
     }
@@ -157,5 +140,3 @@ int Control::objectValue(QString name)
 
     return ret;
 }
-
-#endif

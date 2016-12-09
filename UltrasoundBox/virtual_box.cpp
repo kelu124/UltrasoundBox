@@ -8,13 +8,14 @@
 #include "render_base.h"
 #include "render_b.h"
 
-#include "eplugins_manager.h"
 #include <qmath.h>
 #include <QMutex>
 
 #include <QOffscreenSurface>
 #include <QOpenGLFramebufferObjectFormat>
 #include <QSGSimpleTextureNode>
+
+
 #if 0
 QList<RenderThread *> RenderItem::threads;
 
@@ -384,3 +385,5 @@ QSGNode *RenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 }
 #include "virtual_box.moc"
 #endif
+
+

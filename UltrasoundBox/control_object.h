@@ -6,32 +6,27 @@
 #include <QString>
 #include <QScriptEngine>
 
-#if 0
 
 class ControlObject : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int     value READ value WRITE setValue NOTIFY valueChanged)
     Q_PROPERTY(QString name  READ name)
-    Q_PROPERTY(int     reset READ reset WRITE setReset NOTIFY resetChanged)
 
 public:
-    explicit ControlObject(QDomNode node, int value, int reset = 1, QObject *parent = 0);
+    explicit ControlObject(QDomNode node, int value, QObject *parent = 0);
 
     int value() const;
     void setValue(int);
 
     QString name() const;
 
-    int reset() const;
-    void setReset(int);
 
     void updateNode(QDomNode);
 protected:
     QDomNode    m_node;
 signals:
     void valueChanged();
-    void resetChanged();
 
 public slots:
 };
@@ -60,6 +55,5 @@ private:
     QDomDocument                       *m_doc;
 };
 
-#endif
 
 #endif // CONTROLOBJECT_H
